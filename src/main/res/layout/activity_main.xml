@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:overScrollMode="never">
+
+    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:tools="http://schemas.android.com/tools"
+        android:id="@+id/activity_main"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingBottom="@dimen/activity_vertical_margin"
+        android:paddingLeft="@dimen/activity_horizontal_margin"
+        android:paddingRight="@dimen/activity_horizontal_margin"
+        android:paddingTop="@dimen/activity_vertical_margin"
+        tools:context="com.cl.slack.playaudio.MainActivity">
+
+        <Button
+            android:id="@+id/media_player"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:onClick="mediaPlayer"
+            android:text="mediaPlayer"
+            android:textAllCaps="false" />
+
+        <Button
+            android:id="@+id/audio_track"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:onClick="audioTrack"
+            android:text="audioTrack"
+            android:textAllCaps="false" />
+
+        <Button
+            android:id="@+id/recode_audio"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:onClick="recodeAudio"
+            android:text="recodeAudio"
+            android:textAllCaps="false" />
+
+        <Button
+            android:id="@+id/play_recode_audio"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:onClick="playRecodeAudio"
+            android:text="playRecodeAudio"
+            android:textAllCaps="false" />
+
+        <Button
+            android:id="@+id/recode_audio_mediacodec"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:onClick="mediaCodec"
+            android:text="recodeAudioMediaCodec"
+            android:textAllCaps="false" />
+
+        <Button
+            android:id="@+id/play_audio_mediacodec"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:onClick="playMediaCodec"
+            android:text="playMediaCodec"
+            android:textAllCaps="false" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content">
+
+            <Button
+                android:id="@+id/recode_mix_audio"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:onClick="recodeMixAudio"
+                android:text="recode_mix_audio"
+                android:textAllCaps="false" />
+
+            <Button
+                android:id="@+id/play_bg_audio"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:onClick="playNeedMixedAudio"
+                android:text="play audio need mixed"
+                android:textAllCaps="false" />
+
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/play_mix_audio"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:onClick="playMixAudio"
+            android:text="recode_mix_audio"
+            android:textAllCaps="false" />
+
+    </LinearLayout>
+</ScrollView>
+
