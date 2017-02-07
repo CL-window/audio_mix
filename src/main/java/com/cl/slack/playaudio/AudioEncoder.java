@@ -15,6 +15,7 @@ import java.util.concurrent.Executors;
  * Created by slack
  * on 17/2/6 下午12:26.
  * 对音频数据进行编码
+ * MediaCodec & MediaMuxer write data
  */
 public class AudioEncoder {
     private static final String TAG = "AudioEncoder";
@@ -32,6 +33,8 @@ public class AudioEncoder {
     private String recordFile;
     private boolean eosReceived = false;  //终止录音的标志
     private ExecutorService encodingService = Executors.newSingleThreadExecutor(); //序列化线程任务
+
+    private long mLastAudioPresentationTimeUs = 0;
 
     //枚举值 一个用来标志编码 一个标志编码完成
     enum EncoderTaskType {
@@ -57,7 +60,7 @@ public class AudioEncoder {
         mAudioFormat.setInteger(MediaFormat.KEY_SAMPLE_RATE, SAMPLE_RATE);
         mAudioFormat.setInteger(MediaFormat.KEY_BIT_RATE, 128000);
         mAudioFormat.setInteger(MediaFormat.KEY_CHANNEL_COUNT, 1);
-//        mAudioFormat.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 16384);
+        mAudioFormat.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 20 * 1024);
         try {
             mAudioCodec = MediaCodec.createEncoderByType(AUDIO_MIME_TYPE);
             mAudioCodec.configure(mAudioFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
@@ -81,7 +84,7 @@ public class AudioEncoder {
 
     public void offerAudioEncoder(ByteBuffer buffer, long presentationTimeStampNs, int length) {
         if (!encodingService.isShutdown()) {
-            encodingService.submit(new AudioEncodeTask(this, buffer,length, presentationTimeStampNs));
+            encodingService.submit(new AudioEncodeTask(this, buffer, length, presentationTimeStampNs));
         }
 
     }
@@ -89,7 +92,7 @@ public class AudioEncoder {
     //发送音频数据和时间进行编码
     public void _offerAudioEncoder(byte[] input, long pts) {
         if (audioBytesReceived == 0) {
-            audioStartTime = System.nanoTime(); // try 修复 E/MPEG4Writer: timestampUs 6220411 < lastTimestampUs 6220442 for Audio track
+            audioStartTime = System.nanoTime();
         }
         audioBytesReceived += input.length;
         drainEncoder(mAudioCodec, mAudioBufferInfo, mAudioTrackIndex, false);
@@ -103,7 +106,7 @@ public class AudioEncoder {
                 inputBuffer.put(input);
 
                 //录音时长
-                long presentationTimeUs = (System.nanoTime() - audioStartTime) / 1000L;// try 修复 E/MPEG4Writer: timestampUs 6220411 < lastTimestampUs 6220442 for Audio track
+                long presentationTimeUs = (System.nanoTime() - audioStartTime) / 1000L;
 //                Log.d(TAG, "presentationTimeUs--" + presentationTimeUs);
                 if (eosReceived) {
                     mAudioCodec.queueInputBuffer(inputBufferIndex, 0, input.length, presentationTimeUs, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
@@ -122,7 +125,7 @@ public class AudioEncoder {
 
     }
 
-    public void _offerAudioEncoder(ByteBuffer buffer,int length, long pts) {
+    public void _offerAudioEncoder(ByteBuffer buffer, int length, long pts) {
         if (audioBytesReceived == 0) {
             audioStartTime = pts;
         }
@@ -159,58 +162,68 @@ public class AudioEncoder {
 
     }
 
+    /**
+     * try 修复 E/MPEG4Writer: timestampUs 6220411 < lastTimestampUs 6220442 for Audio track
+     * add check : mLastAudioPresentationTimeUs < bufferInfo.presentationTimeUs
+     */
     public void drainEncoder(MediaCodec encoder, MediaCodec.BufferInfo bufferInfo, TrackIndex trackIndex, boolean endOfStream) {
         final int TIMEOUT_USEC = 100;
         ByteBuffer[] encoderOutputBuffers = encoder.getOutputBuffers();
-        while (true) {
-            int encoderIndex = encoder.dequeueOutputBuffer(bufferInfo, TIMEOUT_USEC);
-//            Log.d(TAG, "encoderIndex---" + encoderIndex);
-            if (encoderIndex == MediaCodec.INFO_TRY_AGAIN_LATER) {
-                //没有可进行混合的输出流数据 但还没有结束录音 此时退出循环
-                Log.d(TAG, "info_try_again_later");
-                if (!endOfStream)
-                    break;
-                else
-                    Log.d(TAG, "no output available, spinning to await EOS");
-            } else if (encoderIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-                //只会在第一次接收数据前 调用一次
-                if (mMuxerStart)
-                    throw new RuntimeException("format 在muxer启动后发生了改变");
-                MediaFormat newFormat = encoder.getOutputFormat();
-                trackIndex.index = mMediaMuxer.addTrack(newFormat);
-                if (!mMuxerStart) {
-                    mMediaMuxer.start();
-                }
-                mMuxerStart = true;
-            } else if (encoderIndex < 0) {
-                Log.w(TAG, "encoderIndex 非法" + encoderIndex);
-            } else {
-                ByteBuffer encodeData = encoderOutputBuffers[encoderIndex];
-                if (encodeData == null) {
-                    throw new RuntimeException("编码数据为空");
-                }
-                if (bufferInfo.size != 0) {
+        try {
+            while (true) {
+                int encoderIndex = encoder.dequeueOutputBuffer(bufferInfo, TIMEOUT_USEC);
+//                Log.d(TAG, "encoderIndex---" + encoderIndex);
+                if (encoderIndex == MediaCodec.INFO_TRY_AGAIN_LATER) {
+                    //没有可进行混合的输出流数据 但还没有结束录音 此时退出循环
+                    Log.d(TAG, "info_try_again_later");
+                    if (!endOfStream)
+                        break;
+                    else
+                        Log.d(TAG, "no output available, spinning to await EOS");
+                } else if (encoderIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                    //只会在第一次接收数据前 调用一次
+                    if (mMuxerStart)
+                        throw new RuntimeException("format 在muxer启动后发生了改变");
+                    MediaFormat newFormat = encoder.getOutputFormat();
+                    trackIndex.index = mMediaMuxer.addTrack(newFormat);
                     if (!mMuxerStart) {
-                        throw new RuntimeException("混合器未开启");
+                        mMediaMuxer.start();
                     }
-                    encodeData.position(bufferInfo.offset);
-                    encodeData.limit(bufferInfo.offset + bufferInfo.size);
+                    mMuxerStart = true;
+                } else if (encoderIndex < 0) {
+                    Log.w(TAG, "encoderIndex 非法" + encoderIndex);
+                } else {
+                    //退出循环
+                    if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                        break;
+                    }
 
-                    mMediaMuxer.writeSampleData(trackIndex.index, encodeData, bufferInfo);
+                    ByteBuffer encodeData = encoderOutputBuffers[encoderIndex];
+                    if (encodeData == null) {
+                        throw new RuntimeException("编码数据为空");
+                    }else
+                    if (bufferInfo.size != 0 && mLastAudioPresentationTimeUs < bufferInfo.presentationTimeUs) {
+                        if (!mMuxerStart) {
+                            throw new RuntimeException("混合器未开启");
+                        }
+                        encodeData.position(bufferInfo.offset);
+                        encodeData.limit(bufferInfo.offset + bufferInfo.size);
+//                        Log.d(TAG, "presentationTimeUs--bufferInfo : " + bufferInfo.presentationTimeUs);
+                        mMediaMuxer.writeSampleData(trackIndex.index, encodeData, bufferInfo);
+
+                        mLastAudioPresentationTimeUs = bufferInfo.presentationTimeUs;
+                    }
+
+                    encoder.releaseOutputBuffer(encoderIndex, false);
+
                 }
-
-                encoder.releaseOutputBuffer(encoderIndex, false);
-                //退出循环
-                if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
-                    break;
-                }
-
-
             }
+        } catch (Exception e) {
+            e.printStackTrace();
+            Log.e("slack", "error :: " + e.getMessage());
         }
 
     }
-
 
     /**
      * 关闭编码
@@ -276,7 +289,7 @@ public class AudioEncoder {
 //            Log.d(TAG,"AudioData--"+audio_data + " pts--"+pts);
         }
 
-        public AudioEncodeTask(AudioEncoder encoder, ByteBuffer buffer, int length,long pts) {
+        public AudioEncodeTask(AudioEncoder encoder, ByteBuffer buffer, int length, long pts) {
             this.encoder = encoder;
             this.byteBuffer = buffer;
             this.length = length;
@@ -303,8 +316,8 @@ public class AudioEncoder {
             if (audio_data != null && encoder != null) {
                 encoder._offerAudioEncoder(audio_data, pts);
                 audio_data = null;
-            }else if(byteBuffer != null && encoder != null) {
-                encoder._offerAudioEncoder(byteBuffer, length,pts);
+            } else if (byteBuffer != null && encoder != null) {
+                encoder._offerAudioEncoder(byteBuffer, length, pts);
                 audio_data = null;
             }
 
@@ -317,7 +330,7 @@ public class AudioEncoder {
 
         @Override
         public void run() {
-            Log.d(TAG, "is_initialized--" + is_initialized + " " + type) ;
+            Log.d(TAG, "is_initialized--" + is_initialized + " " + type);
             if (is_initialized) {
                 switch (type) {
                     case ENCODE_FRAME:

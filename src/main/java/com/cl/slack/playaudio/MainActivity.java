@@ -70,7 +70,7 @@ public class MainActivity extends AppCompatActivity {
     private byte[] backGroundBytes;
     private boolean mHasFrameBytes;
 
-    private PCMData mPCMData;
+    private PCMData mPCMData = new PCMData(mp3FilePath);;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -246,10 +246,8 @@ public class MainActivity extends AppCompatActivity {
      * 解析 mp3 --> pcm
      */
     private void initPCMData() {
-        mPCMData = new PCMData(mp3FilePath);
         mPCMData.startPcmExtractor();
     }
-
 
     /**
      * 混合音频
@@ -654,6 +652,7 @@ public class MainActivity extends AppCompatActivity {
                 while (mIsRecording) {
                     // 从bufferSize中读取字节，返回读取的short个数
                     audioPresentationTimeNs = System.nanoTime();
+
                     int samples_per_frame = mPCMData.getBufferSize(); // 这里需要与 背景音乐读取出来的数据长度 一样
                     byte[] buffer = new byte[samples_per_frame];
                     //从缓冲区中读取数据，存入到buffer字节数组数组中
@@ -695,6 +694,57 @@ public class MainActivity extends AppCompatActivity {
 
         }
 
+    }
+
+    /**
+     * 虽然可以新建多个 AsyncTask的子类的实例，但是AsyncTask的内部Handler和ThreadPoolExecutor都是static的，
+     * 这么定义的变 量属于类的，是进程范围内共享的，所以AsyncTask控制着进程范围内所有的子类实例，
+     * 而且该类的所有实例都共用一个线程池和Handler
+     * 这里新开一个线程
+     * 自己解析出来 pcm data
+     */
+    class PlayNeedMixAudioTask extends Thread {
+
+        private BackGroundFrameListener listener;
+
+        public PlayNeedMixAudioTask(BackGroundFrameListener l) {
+            listener = l;
+        }
+
+        @Override
+        public void run() {
+            Log.i("thread", "PlayNeedMixAudioTask: " + Thread.currentThread().getId());
+            mIsPlaying = true;
+            try {
+                int bufferSize = AudioTrack.getMinBufferSize(mFrequence,
+                        mPlayChannelConfig, mAudioEncoding);
+                // 实例AudioTrack
+                AudioTrack track = new AudioTrack(AudioManager.STREAM_MUSIC,
+                        mFrequence,
+                        mPlayChannelConfig, mAudioEncoding, bufferSize,
+                        AudioTrack.MODE_STREAM);
+                // 开始播放
+                track.play();
+
+                while (mIsPlaying) {
+                    byte[] temp = mPCMData.getPCMData();
+                    if (temp == null) {
+                        continue;
+                    }
+                    track.write(temp, 0, temp.length);
+                    if (listener != null) {
+                        listener.onFrameArrive(temp);
+                    }
+                }
+
+                mHasFrameBytes = false;
+                track.stop();
+                track.release();
+            } catch (Exception e) {
+                // TODO: handle exception
+                Log.e("slack", "error:" + e.getMessage());
+            }
+        }
     }
 
     /**
@@ -751,57 +801,6 @@ public class MainActivity extends AppCompatActivity {
             realMixAudio[sr * 2 + 1] = (byte) ((sMixAudio[sr] & 0xFF00) >> 8);
         }
         return realMixAudio;
-    }
-
-    /**
-     * 虽然可以新建多个 AsyncTask的子类的实例，但是AsyncTask的内部Handler和ThreadPoolExecutor都是static的，
-     * 这么定义的变 量属于类的，是进程范围内共享的，所以AsyncTask控制着进程范围内所有的子类实例，
-     * 而且该类的所有实例都共用一个线程池和Handler
-     * 这里新开一个线程
-     * 自己解析出来 pcm data
-     */
-    class PlayNeedMixAudioTask extends Thread {
-
-        private BackGroundFrameListener listener;
-
-        public PlayNeedMixAudioTask(BackGroundFrameListener l) {
-            listener = l;
-        }
-
-        @Override
-        public void run() {
-            Log.i("thread", "PlayNeedMixAudioTask: " + Thread.currentThread().getId());
-            mIsPlaying = true;
-            try {
-                int bufferSize = AudioTrack.getMinBufferSize(mFrequence,
-                        mPlayChannelConfig, mAudioEncoding);
-                // 实例AudioTrack
-                AudioTrack track = new AudioTrack(AudioManager.STREAM_MUSIC,
-                        mFrequence,
-                        mPlayChannelConfig, mAudioEncoding, bufferSize,
-                        AudioTrack.MODE_STREAM);
-                // 开始播放
-                track.play();
-
-                while (mIsPlaying) {
-                    byte[] temp = mPCMData.getPCMData();
-                    if (temp == null) {
-                        continue;
-                    }
-                    track.write(temp, 0, temp.length);
-                    if (listener != null) {
-                        listener.onFrameArrive(temp);
-                    }
-                }
-
-                mHasFrameBytes = false;
-                track.stop();
-                track.release();
-            } catch (Exception e) {
-                // TODO: handle exception
-                Log.e("slack", "error:" + e.getMessage());
-            }
-        }
     }
 
     public byte[] shorts2Bytes(short[] s) {
