@@ -19,6 +19,10 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.Toast;
+
+import com.cl.slack.playaudio.permission.PermissionsManager;
+import com.cl.slack.playaudio.permission.PermissionsResultAction;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -34,6 +38,7 @@ import java.nio.ByteOrder;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Queue;
 import java.util.concurrent.SynchronousQueue;
 
@@ -110,6 +115,8 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        initPermission();
+
         mediaPlayerBtn = (Button) findViewById(R.id.media_player);
         audioTrackBtn = (Button) findViewById(R.id.audio_track);
         recodeAudioBtn = (Button) findViewById(R.id.recode_audio);
@@ -121,6 +128,21 @@ public class MainActivity extends AppCompatActivity {
         playMixBtn = (Button) findViewById(R.id.play_mix_audio);
 
         medicCodecFile = new File(Environment.getExternalStorageDirectory(), "test_media_audio.mp3"); // m4a");
+    }
+
+    private void initPermission() {
+        PermissionsManager.getInstance().requestAllManifestPermissionsIfNecessary(this, new PermissionsResultAction() {
+            @Override
+            public void onGranted() {
+                Toast.makeText(MainActivity.this, "All permissions have been granted.", Toast.LENGTH_SHORT).show();
+            }
+
+            @Override
+            public void onDenied(String permission) {
+                String message ="Permission "+permission+" has been denied.";
+                Toast.makeText(MainActivity.this, message, Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     private void initMediaPlayer(String filePath) {
@@ -806,6 +828,7 @@ public class MainActivity extends AppCompatActivity {
 
     /**
      * 采用简单的平均算法 average audio mixing algorithm
+     * code from :    http://www.codexiu.cn/android/blog/3618/
      * 测试发现这种算法会降低 录制的音量
      */
     private byte[] averageMix(byte[][] bMulRoadAudioes) {
