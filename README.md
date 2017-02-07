@@ -8,6 +8,7 @@ try 实时录制audio时录制麦克风数据 和 写入背景音乐
 ＊AudioRecord 录制音频 pcm file
 ＊AudioTrack 播放音频 pcm data
 ＊AudioRecord 录制音频 use MediaCodec & MediaMuxer write data
+＊MediaExtractor 和 MediaCodec 手动解码出 pcm 数据
 ＊混合音频
 
 混合音频：
