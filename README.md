@@ -1,7 +1,8 @@
 try 实时录制audio时录制麦克风数据 和 写入背景音乐
 没有处理权限的问题，需要先去设置里获取权限
 
-``` 实现
+```
+## 实现
 ＊MediaPlayer 播放音频
 ＊AudioTrack 播放音频 mp3 --> pcm data  ( libs/jl1.0.1.jar )
 ＊AudioRecord 录制音频 pcm file
@@ -26,7 +27,8 @@ try 实时录制audio时录制麦克风数据 和 写入背景音乐
 
 ```
 
-```error
+```
+## error
 E/MPEG4Writer: timestampUs 6220411 < lastTimestampUs 6220442 for Audio track
 这个问题与 record.read(buffer,0,samples_per_frame); samples_per_frame 参数的设置有关
 int samples_per_frame = 2048; 但是开一个背景音乐，好像就嫌大了 so    int samples_per_frame = 1024;
