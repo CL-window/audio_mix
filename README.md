@@ -22,7 +22,9 @@ try 录制audio时录制麦克风数据 和 写入背景音乐
  if (listener != null) {
      listener.onFrameArrive(temp);
  }
- 使用队列 ArrayDeque 记录音频背景音乐帧，不丢帧 使用com.cl.slack.playaudio.PCMData.chunkPCMDataContainer的方式一样可以
+ 使用队列 ArrayDeque 记录音频背景音乐帧，不丢帧 使用ArrayList一样可以
+
+```
 
 ```error
 E/MPEG4Writer: timestampUs 6220411 < lastTimestampUs 6220442 for Audio track
@@ -34,3 +36,5 @@ so    long presentationTimeUs = (System.nanoTime() - audioStartTime) / 1000L;
 但是只要提高 samples_per_frame  必然出错
 只能记录上一次的时间戳 然后加入判断 if(mLastAudioPresentationTimeUs < bufferInfo.presentationTimeUs)
 这样  samples_per_frame 就可以随便设置了
+
+```

@@ -21,7 +21,9 @@ public class PCMData {
      * 初始化解码器
      */
     private static final Object lockPCM = new Object();
-    private ArrayList<byte[]> chunkPCMDataContainer = new ArrayList<>();//PCM数据块容器
+    private static final int BUFFER_SIZE = 2048;
+
+    private ArrayList<PCM> chunkPCMDataContainer = new ArrayList<>();//PCM数据块容器
     private MediaExtractor mediaExtractor;
     private MediaCodec mediaDecode;
     private ByteBuffer[] decodeInputBuffers;
@@ -31,8 +33,6 @@ public class PCMData {
     boolean sawOutputEOS = false;
 
     private String mp3FilePath;
-
-    private int bufferSize = 2048;
 
     private MediaFormat mMediaFormat;
 
@@ -62,14 +62,22 @@ public class PCMData {
                 return null;
             }
 
-            byte[] pcmChunk = chunkPCMDataContainer.get(0);//每次取出index 0 的数据
-            chunkPCMDataContainer.remove(pcmChunk);//取出后将此数据remove掉 既能保证PCM数据块的取出顺序 又能及时释放内存
+            byte[] pcmChunk = chunkPCMDataContainer.get(0).bufferBytes;//每次取出index 0 的数据
+            chunkPCMDataContainer.remove(0);//取出后将此数据remove掉 既能保证PCM数据块的取出顺序 又能及时释放内存
             return pcmChunk;
         }
     }
 
+    /**
+     * 测试时发现 播放音频的 MediaCodec.BufferInfo.size 是变换的
+     */
     public int getBufferSize() {
-        return bufferSize;
+        synchronized (lockPCM) {//记得加锁
+            if (chunkPCMDataContainer.isEmpty()) {
+                return BUFFER_SIZE;
+            }
+            return chunkPCMDataContainer.get(0).bufferSize;
+        }
     }
 
     public MediaFormat getMediaFormat() {
@@ -106,9 +114,9 @@ public class PCMData {
         decodeBufferInfo = new MediaCodec.BufferInfo();//用于描述解码得到的byte[]数据的相关信息
     }
 
-    private void putPCMData(byte[] pcmChunk) {
+    private void putPCMData(byte[] pcmChunk,int bufferSize) {
         synchronized (lockPCM) {//记得加锁
-            chunkPCMDataContainer.add(pcmChunk);
+            chunkPCMDataContainer.add(new PCM(pcmChunk,bufferSize));
         }
     }
 
@@ -144,7 +152,6 @@ public class PCMData {
                 //获取解码得到的byte[]数据 参数BufferInfo上面已介绍 10000同样为等待时间 同上-1代表一直等待，0代表不等待。此处单位为微秒
                 //此处建议不要填-1 有些时候并没有数据输出，那么他就会一直卡在这 等待
                 int outputIndex = mediaDecode.dequeueOutputBuffer(decodeBufferInfo, 10000);
-                bufferSize = decodeBufferInfo.size;
                 if (outputIndex >= 0) {
                     int outputBufIndex = outputIndex;
                     // Simply ignore codec config buffers.
@@ -161,7 +168,7 @@ public class PCMData {
                         outBuf.limit(decodeBufferInfo.offset + decodeBufferInfo.size);
                         byte[] data = new byte[decodeBufferInfo.size];//BufferInfo内定义了此数据块的大小
                         outBuf.get(data);//将Buffer内的数据取出到字节数组中
-                        putPCMData(data);//自己定义的方法，供编码器所在的线程获取数据,下面会贴出代码
+                        putPCMData(data,decodeBufferInfo.size);//自己定义的方法，供编码器所在的线程获取数据,下面会贴出代码
                     }
 
                     mediaDecode.releaseOutputBuffer(outputBufIndex, false);//此操作一定要做，不然MediaCodec用完所有的Buffer后 将不能向外输出数据
@@ -187,4 +194,13 @@ public class PCMData {
     }
 
 
+    class PCM{
+        public PCM(byte[] bufferBytes, int bufferSize) {
+            this.bufferBytes = bufferBytes;
+            this.bufferSize = bufferSize;
+        }
+
+        byte[] bufferBytes;
+        int bufferSize;
+    }
 }

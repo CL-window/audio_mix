@@ -84,7 +84,11 @@ public class MainActivity extends AppCompatActivity {
                 return null;
             }
             // poll 如果队列为空，则返回null
-            return backGroundBytes.poll();
+            byte[] temp = backGroundBytes.poll();
+            if(temp == null){
+                mHasFrameBytes = false;
+            }
+            return temp;
         }
     }
 
@@ -695,7 +699,7 @@ public class MainActivity extends AppCompatActivity {
                     int samples_per_frame = mPCMData.getBufferSize(); // 这里需要与 背景音乐读取出来的数据长度 一样
                     byte[] buffer = new byte[samples_per_frame];
                     //从缓冲区中读取数据，存入到buffer字节数组数组中
-                    bufferReadResult = record.read(buffer, 0, samples_per_frame);
+                    bufferReadResult = record.read(buffer, 0, buffer.length);
                     //判断是否读取成功
                     if (bufferReadResult == AudioRecord.ERROR_BAD_VALUE || bufferReadResult == AudioRecord.ERROR_INVALID_OPERATION)
                         Log.e("slack", "Read error");
@@ -793,14 +797,15 @@ public class MainActivity extends AppCompatActivity {
      */
     private byte[] mixBuffer(byte[] buffer) {
         if(mIsPlaying && mHasFrameBytes){
-            return getBackGroundBytes();
-//            return averageMix(new byte[][]{buffer,backGroundBytes});
+//            return getBackGroundBytes(); // 直接写入背景音乐数据
+            return averageMix(new byte[][]{buffer,getBackGroundBytes()});
         }
         return buffer;
     }
 
     /**
      * 采用简单的平均算法 average audio mixing algorithm
+     * 测试发现这种算法会降低 录制的音量
      */
     private byte[] averageMix(byte[][] bMulRoadAudioes) {
 
