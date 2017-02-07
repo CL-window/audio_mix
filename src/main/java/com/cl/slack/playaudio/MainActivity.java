@@ -67,7 +67,8 @@ public class MainActivity extends AppCompatActivity {
     private File mAudioFile = null;
     private boolean mIsRecording = false, mIsPlaying = false;
     private int mFrequence = 44100;
-    private int mChannelConfig = AudioFormat.CHANNEL_IN_MONO;//保证能在所有设备上工作
+    private int mChannelConfig = AudioFormat.CHANNEL_IN_MONO;//单音轨 保证能在所有设备上工作
+    private int mChannelStereo = AudioFormat.CHANNEL_IN_STEREO;
     private int mPlayChannelConfig = AudioFormat.CHANNEL_OUT_STEREO;
     private int mAudioEncoding = AudioFormat.ENCODING_PCM_16BIT;//一个采样点16比特-2个字节
 
@@ -361,7 +362,7 @@ public class MainActivity extends AppCompatActivity {
                                 new FileOutputStream(mAudioFile)));
                 // 根据定义好的几个配置，来获取合适的缓冲大小
                 int bufferSize = AudioRecord.getMinBufferSize(mFrequence,
-                        mChannelConfig, mAudioEncoding);
+                        mChannelStereo, mAudioEncoding);
                 // 实例化AudioRecord
 //                AudioRecord record = findAudioRecord();
                 AudioRecord record = new AudioRecord(
@@ -849,49 +850,6 @@ public class MainActivity extends AppCompatActivity {
         return realMixAudio;
     }
 
-    public byte[] shorts2Bytes(short[] s) {
-        byte bLength = 2;
-        byte[] buf = new byte[s.length * bLength];
-        for (int iLoop = 0; iLoop < s.length; iLoop++) {
-            byte[] temp = getBytes(s[iLoop]);
-            for (int jLoop = 0; jLoop < bLength; jLoop++) {
-                buf[iLoop * bLength + jLoop] = temp[jLoop];
-            }
-        }
-        return buf;
-    }
-
-    /**
-     * 大端小端 问题
-     */
-    private boolean thisCPU() {
-        if (ByteOrder.nativeOrder() == ByteOrder.BIG_ENDIAN) {
-            // System.out.println(is big ending);
-            return true;
-        } else {
-            // System.out.println(is little ending);
-            return false;
-        }
-    }
-
-    private byte[] getBytes(long s, boolean bBigEnding) {
-        byte[] buf = new byte[8];
-        if (bBigEnding)
-            for (int i = buf.length - 1; i >= 0; i--) {
-                buf[i] = (byte) (s & 0x00000000000000ff);
-                s >>= 8;
-            }
-        else
-            for (int i = 0; i < buf.length; i++) {
-                buf[i] = (byte) (s & 0x00000000000000ff);
-                s >>= 8;
-            }
-        return buf;
-    }
-
-    public byte[] getBytes(short s) {
-        return getBytes(s, this.thisCPU());
-    }
 
     public interface BackGroundFrameListener {
         void onFrameArrive(byte[] bytes);
