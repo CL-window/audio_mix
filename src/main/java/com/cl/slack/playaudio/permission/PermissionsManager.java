@@ -24,6 +24,8 @@ import java.util.Set;
  * Created by slack
  * on 17/2/7 下午5:50.
  * A class to help you manage your permissions simply.
+ * form  https://github.com/anthonycr/Grant
+ * change : com.cl.slack.playaudio.permission.PermissionsManager#getPermissionsListToRequest(android.app.Activity, java.lang.String[], com.cl.slack.playaudio.permission.PermissionsResultAction)
  */
 
 public class PermissionsManager {
