@@ -7,6 +7,7 @@ import android.util.Log;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Objects;
 
 /**
  * Created by slack
@@ -19,6 +20,7 @@ public class PCMData {
     /**
      * 初始化解码器
      */
+    private static final Object lockPCM = new Object();
     private ArrayList<byte[]> chunkPCMDataContainer = new ArrayList<>();//PCM数据块容器
     private MediaExtractor mediaExtractor;
     private MediaCodec mediaDecode;
@@ -32,15 +34,17 @@ public class PCMData {
 
     private int bufferSize = 2048;
 
+    private MediaFormat mMediaFormat;
+
     public PCMData(String path) {
         mp3FilePath = path;
     }
 
     public PCMData startPcmExtractor(){
+        initMediaDecode();
         new Thread(new Runnable() {
             @Override
             public void run() {
-                initMediaDecode();
                 srcAudioFormatToPCM();
             }
         }).start();
@@ -53,7 +57,7 @@ public class PCMData {
     }
 
     public byte[] getPCMData() {
-        synchronized (MainActivity.class) {//记得加锁
+        synchronized (lockPCM) {//记得加锁
             if (chunkPCMDataContainer.isEmpty()) {
                 return null;
             }
@@ -68,19 +72,22 @@ public class PCMData {
         return bufferSize;
     }
 
+    public MediaFormat getMediaFormat() {
+        return mMediaFormat;
+    }
 
     private void initMediaDecode() {
         try {
             mediaExtractor = new MediaExtractor();//此类可分离视频文件的音轨和视频轨道
             mediaExtractor.setDataSource(mp3FilePath);//媒体文件的位置
             for (int i = 0; i < mediaExtractor.getTrackCount(); i++) {//遍历媒体轨道 此处我们传入的是音频文件，所以也就只有一条轨道
-                MediaFormat format = mediaExtractor.getTrackFormat(i);
-                String mime = format.getString(MediaFormat.KEY_MIME);
+                mMediaFormat = mediaExtractor.getTrackFormat(i);
+                String mime = mMediaFormat.getString(MediaFormat.KEY_MIME);
                 if (mime.startsWith("audio/")) {//获取音频轨道
 //                    format.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 200 * 1024);
                     mediaExtractor.selectTrack(i);//选择此音频轨道
                     mediaDecode = MediaCodec.createDecoderByType(mime);//创建Decode解码器
-                    mediaDecode.configure(format, null, null, 0);
+                    mediaDecode.configure(mMediaFormat, null, null, 0);
                     break;
                 }
             }
@@ -100,7 +107,7 @@ public class PCMData {
     }
 
     private void putPCMData(byte[] pcmChunk) {
-        synchronized (MainActivity.class) {//记得加锁
+        synchronized (lockPCM) {//记得加锁
             chunkPCMDataContainer.add(pcmChunk);
         }
     }

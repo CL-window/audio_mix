@@ -14,6 +14,15 @@ try 录制audio时录制麦克风数据 和 写入背景音乐
  获取麦克风数据时 长度 2048 没有问题，再大一点 就会出 timestampUs 问题
  背景音乐的播放 帧长度 2492 4608 4608 4608...(仅我的测试用例) MediaCodec.BufferInfo.size
  但是一帧数据长度小于 这个值，播放时 杂音很大，而且播放速度不对 ，看来播放这块是动不了了
+ 修复 error 部分 的 E/MPEG4Writer: timestampUs 6220411 < lastTimestampUs 6220442 for Audio track 就OK了
+ 现在的问题 混合音频杂音很多
+ 尝试不写入录制的麦克风数据，只是 背景播放的原始数据，速率不对 ，杂音严重 !!!
+
+ 感觉是不是丢帧了 ，下面的代码在while里执行，可能会数据覆盖的太快
+ if (listener != null) {
+     listener.onFrameArrive(temp);
+ }
+ 使用队列 ArrayDeque 记录音频背景音乐帧，不丢帧 使用com.cl.slack.playaudio.PCMData.chunkPCMDataContainer的方式一样可以
 
 ```error
 E/MPEG4Writer: timestampUs 6220411 < lastTimestampUs 6220442 for Audio track

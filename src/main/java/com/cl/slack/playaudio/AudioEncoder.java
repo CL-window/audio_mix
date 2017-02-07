@@ -43,7 +43,7 @@ public class AudioEncoder {
 
     public AudioEncoder(String filePath) {
         recordFile = filePath;
-        prepareEncoder();
+//        prepareEncoder();
     }
 
     class TrackIndex {
@@ -59,8 +59,35 @@ public class AudioEncoder {
         mAudioFormat.setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC);
         mAudioFormat.setInteger(MediaFormat.KEY_SAMPLE_RATE, SAMPLE_RATE);
         mAudioFormat.setInteger(MediaFormat.KEY_BIT_RATE, 128000);
-        mAudioFormat.setInteger(MediaFormat.KEY_CHANNEL_COUNT, 1);
-        mAudioFormat.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 20 * 1024);
+        mAudioFormat.setInteger(MediaFormat.KEY_CHANNEL_COUNT, 2);
+        mAudioFormat.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 10 * 1024);
+        try {
+            mAudioCodec = MediaCodec.createEncoderByType(AUDIO_MIME_TYPE);
+            mAudioCodec.configure(mAudioFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+            mAudioCodec.start();
+            mMediaMuxer = new MediaMuxer(recordFile, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
+            Log.d(TAG, "prepareEncoder...");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+    }
+
+    public void prepareEncoder(MediaFormat format) {
+        if(format == null){
+            this.prepareEncoder();
+            return;
+        }
+        eosReceived = false;
+        audioBytesReceived = 0;
+        mAudioBufferInfo = new MediaCodec.BufferInfo();
+        mAudioFormat = new MediaFormat();
+        mAudioFormat.setInteger(MediaFormat.KEY_SAMPLE_RATE, format.getInteger(MediaFormat.KEY_SAMPLE_RATE));
+        mAudioFormat.setInteger(MediaFormat.KEY_BIT_RATE, format.getInteger(MediaFormat.KEY_BIT_RATE));
+        mAudioFormat.setInteger(MediaFormat.KEY_CHANNEL_COUNT, format.getInteger(MediaFormat.KEY_CHANNEL_COUNT));
+        mAudioFormat.setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC);
+        mAudioFormat.setString(MediaFormat.KEY_MIME, AUDIO_MIME_TYPE);
+        mAudioFormat.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 10 * 1024);
         try {
             mAudioCodec = MediaCodec.createEncoderByType(AUDIO_MIME_TYPE);
             mAudioCodec.configure(mAudioFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
@@ -175,7 +202,7 @@ public class AudioEncoder {
 //                Log.d(TAG, "encoderIndex---" + encoderIndex);
                 if (encoderIndex == MediaCodec.INFO_TRY_AGAIN_LATER) {
                     //没有可进行混合的输出流数据 但还没有结束录音 此时退出循环
-                    Log.d(TAG, "info_try_again_later");
+//                    Log.d(TAG, "info_try_again_later");
                     if (!endOfStream)
                         break;
                     else
@@ -206,6 +233,7 @@ public class AudioEncoder {
                         if (!mMuxerStart) {
                             throw new RuntimeException("混合器未开启");
                         }
+                        Log.d(TAG, "write_info_data......");
                         encodeData.position(bufferInfo.offset);
                         encodeData.limit(bufferInfo.offset + bufferInfo.size);
 //                        Log.d(TAG, "presentationTimeUs--bufferInfo : " + bufferInfo.presentationTimeUs);

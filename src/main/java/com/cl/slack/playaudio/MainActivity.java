@@ -4,6 +4,7 @@ import android.content.res.AssetFileDescriptor;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioRecord;
+import android.media.AudioRouting;
 import android.media.AudioTrack;
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
@@ -30,7 +31,11 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.SynchronousQueue;
 
 import javazoom.jl.decoder.Bitstream;
 import javazoom.jl.decoder.Decoder;
@@ -45,6 +50,7 @@ import javazoom.jl.decoder.SampleBuffer;
  */
 public class MainActivity extends AppCompatActivity {
 
+    private static final Object lockBGMusic = new Object();
     private String mp3FilePath = Environment.getExternalStorageDirectory().getAbsolutePath() + "/test.mp3";
     private File medicCodecFile = null;
     private MediaPlayer mMediaPlayer;
@@ -61,16 +67,38 @@ public class MainActivity extends AppCompatActivity {
     private File mAudioFile = null;
     private boolean mIsRecording = false, mIsPlaying = false;
     private int mFrequence = 44100;
-    private int mChannelConfig = AudioFormat.CHANNEL_IN_STEREO;
+    private int mChannelConfig = AudioFormat.CHANNEL_IN_MONO;//保证能在所有设备上工作
     private int mPlayChannelConfig = AudioFormat.CHANNEL_OUT_STEREO;
     private int mAudioEncoding = AudioFormat.ENCODING_PCM_16BIT;//一个采样点16比特-2个字节
 
     private AudioEncoder mAudioEncoder;
 
-    private byte[] backGroundBytes;
+    private Queue<byte[]> backGroundBytes = new ArrayDeque<>();
     private boolean mHasFrameBytes;
 
     private PCMData mPCMData = new PCMData(mp3FilePath);;
+
+    public byte[] getBackGroundBytes() {
+        synchronized (lockBGMusic){
+            if (backGroundBytes.isEmpty()) {
+                return null;
+            }
+            // poll 如果队列为空，则返回null
+            return backGroundBytes.poll();
+        }
+    }
+
+    /**
+     * 这样的方式控制同步 需要添加到队列时判断同时在播放和录制
+     */
+    public void addBackGroundBytes(byte[] bytes) {
+        synchronized (lockBGMusic){
+            if(mIsPlaying && mIsRecording){
+                backGroundBytes.add(bytes);
+            }
+        }
+    }
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -191,6 +219,7 @@ public class MainActivity extends AppCompatActivity {
             mediaCodecBtn.setText("stop");
             mediaCodecBtn.setTag(this);
             mAudioEncoder = new AudioEncoder(medicCodecFile.getAbsolutePath());
+            mAudioEncoder.prepareEncoder();
 //            mRecordMediaCodecTask = new RecordMediaCodecTask();
 //            mRecordMediaCodecTask.execute();
             mRecordMediaCodecByteBufferTask = new RecordMediaCodecByteBufferTask();
@@ -236,7 +265,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onFrameArrive(byte[] bytes) {
                 mHasFrameBytes = true;
-                backGroundBytes = bytes;
+                addBackGroundBytes(bytes);
             }
         });
         mPlayNeedMixAudioTask.start();
@@ -257,6 +286,16 @@ public class MainActivity extends AppCompatActivity {
             recodeMixBtn.setText("stop");
             recodeMixBtn.setTag(this);
             mAudioEncoder = new AudioEncoder(medicCodecFile.getAbsolutePath());
+            mAudioEncoder.prepareEncoder();
+//            // 测试 发现直接写入 播放的数据不清晰 猜测是 MediaFormat
+//            if(mPCMData.getMediaFormat() == null){
+//                // 先进行录制 再背景音乐播放
+//                mAudioEncoder.prepareEncoder();
+//            }else {
+//                // just test mPCMData.getMediaFormat() may null  背景音乐先播放 再进行录制
+//                // 录制的速率 太快
+//                mAudioEncoder.prepareEncoder(mPCMData.getMediaFormat());
+//            }
             mRecordMixTask = new RecordMixTask();
             mRecordMixTask.execute();
         } else {
@@ -644,13 +683,13 @@ public class MainActivity extends AppCompatActivity {
                 // 实例化AudioRecord
                 AudioRecord record = new AudioRecord(
                         MediaRecorder.AudioSource.MIC, mFrequence,
-                        mChannelConfig, mAudioEncoding, bufferSize);
+                        mChannelConfig, mAudioEncoding, bufferSize * 4);
 
                 // 开始录制
                 record.startRecording();
 
                 while (mIsRecording) {
-                    // 从bufferSize中读取字节，返回读取的short个数
+
                     audioPresentationTimeNs = System.nanoTime();
 
                     int samples_per_frame = mPCMData.getBufferSize(); // 这里需要与 背景音乐读取出来的数据长度 一样
@@ -706,6 +745,7 @@ public class MainActivity extends AppCompatActivity {
     class PlayNeedMixAudioTask extends Thread {
 
         private BackGroundFrameListener listener;
+        private long audioPresentationTimeNs; //音频时间戳 pts
 
         public PlayNeedMixAudioTask(BackGroundFrameListener l) {
             listener = l;
@@ -727,6 +767,7 @@ public class MainActivity extends AppCompatActivity {
                 track.play();
 
                 while (mIsPlaying) {
+                    audioPresentationTimeNs = System.nanoTime();
                     byte[] temp = mPCMData.getPCMData();
                     if (temp == null) {
                         continue;
@@ -748,12 +789,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * @param buffer
-     * @return
+     * 混合 音频
      */
     private byte[] mixBuffer(byte[] buffer) {
         if(mIsPlaying && mHasFrameBytes){
-            return averageMix(new byte[][]{buffer,backGroundBytes});
+            return getBackGroundBytes();
+//            return averageMix(new byte[][]{buffer,backGroundBytes});
         }
         return buffer;
     }
