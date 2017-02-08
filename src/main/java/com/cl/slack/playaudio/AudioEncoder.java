@@ -37,7 +37,7 @@ public class AudioEncoder {
     private long mLastAudioPresentationTimeUs = 0;
 
     //枚举值 一个用来标志编码 一个标志编码完成
-    enum EncoderTaskType {
+    private enum EncoderTaskType {
         ENCODE_FRAME, FINALIZE_ENCODER
     }
 
@@ -46,7 +46,7 @@ public class AudioEncoder {
 //        prepareEncoder();
     }
 
-    class TrackIndex {
+    private class TrackIndex {
         int index = 0;
     }
 
@@ -109,6 +109,13 @@ public class AudioEncoder {
 
     }
 
+    /**
+     * 同步操作
+     */
+    public void offerAudioEncoderSyn(byte[] input) {
+        _offerAudioEncoder(input, 0);
+    }
+
     public void offerAudioEncoder(ByteBuffer buffer, long presentationTimeStampNs, int length) {
         if (!encodingService.isShutdown()) {
             encodingService.submit(new AudioEncodeTask(this, buffer, length, presentationTimeStampNs));
@@ -117,7 +124,7 @@ public class AudioEncoder {
     }
 
     //发送音频数据和时间进行编码
-    public void _offerAudioEncoder(byte[] input, long pts) {
+    private void _offerAudioEncoder(byte[] input, long pts) {
         if (audioBytesReceived == 0) {
             audioStartTime = System.nanoTime();
         }
@@ -152,7 +159,7 @@ public class AudioEncoder {
 
     }
 
-    public void _offerAudioEncoder(ByteBuffer buffer, int length, long pts) {
+    private void _offerAudioEncoder(ByteBuffer buffer, int length, long pts) {
         if (audioBytesReceived == 0) {
             audioStartTime = pts;
         }
@@ -193,7 +200,7 @@ public class AudioEncoder {
      * try 修复 E/MPEG4Writer: timestampUs 6220411 < lastTimestampUs 6220442 for Audio track
      * add check : mLastAudioPresentationTimeUs < bufferInfo.presentationTimeUs
      */
-    public void drainEncoder(MediaCodec encoder, MediaCodec.BufferInfo bufferInfo, TrackIndex trackIndex, boolean endOfStream) {
+    private void drainEncoder(MediaCodec encoder, MediaCodec.BufferInfo bufferInfo, TrackIndex trackIndex, boolean endOfStream) {
         final int TIMEOUT_USEC = 100;
         ByteBuffer[] encoderOutputBuffers = encoder.getOutputBuffers();
         try {
@@ -259,7 +266,7 @@ public class AudioEncoder {
      * @param encoder
      * @param bufferInfo
      */
-    public void closeEncoder(MediaCodec encoder, MediaCodec.BufferInfo bufferInfo, TrackIndex trackIndex) {
+    private void closeEncoder(MediaCodec encoder, MediaCodec.BufferInfo bufferInfo, TrackIndex trackIndex) {
         drainEncoder(encoder, bufferInfo, trackIndex, true);
         encoder.stop();
         encoder.release();
@@ -270,7 +277,7 @@ public class AudioEncoder {
     /**
      * 关闭混合器
      */
-    public void closeMuxer() {
+    private void closeMuxer() {
         if (mMuxerStart && mMediaMuxer != null) {
             mMediaMuxer.stop();
             mMediaMuxer.release();
@@ -296,7 +303,7 @@ public class AudioEncoder {
     /**
      * 音频编码任务
      */
-    class AudioEncodeTask implements Runnable {
+    private class AudioEncodeTask implements Runnable {
         private static final String TAG = "AudioEncoderTask";
         private boolean is_initialized = false;
         private AudioEncoder encoder;
@@ -307,7 +314,7 @@ public class AudioEncoder {
         private EncoderTaskType type;
 
         //进行编码任务时 调用此构造方法
-        public AudioEncodeTask(AudioEncoder encoder, byte[] audio_data, long pts) {
+        private AudioEncodeTask(AudioEncoder encoder, byte[] audio_data, long pts) {
             this.encoder = encoder;
             this.audio_data = audio_data;
             this.pts = pts;
@@ -317,7 +324,7 @@ public class AudioEncoder {
 //            Log.d(TAG,"AudioData--"+audio_data + " pts--"+pts);
         }
 
-        public AudioEncodeTask(AudioEncoder encoder, ByteBuffer buffer, int length, long pts) {
+        private AudioEncodeTask(AudioEncoder encoder, ByteBuffer buffer, int length, long pts) {
             this.encoder = encoder;
             this.byteBuffer = buffer;
             this.length = length;
@@ -328,7 +335,7 @@ public class AudioEncoder {
         }
 
         //当要停止编码任务时 调用此构造方法
-        public AudioEncodeTask(AudioEncoder encoder, EncoderTaskType type) {
+        private AudioEncodeTask(AudioEncoder encoder, EncoderTaskType type) {
             this.type = type;
 
             if (type == EncoderTaskType.FINALIZE_ENCODER) {

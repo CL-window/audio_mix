@@ -48,7 +48,6 @@ import javazoom.jl.decoder.Header;
 import javazoom.jl.decoder.SampleBuffer;
 
 /**
- * TODO 没有处理权限问题
  *
  * @author slack
  * @time 17/2/6 下午1:47
@@ -57,10 +56,12 @@ public class MainActivity extends AppCompatActivity {
 
     private static final Object lockBGMusic = new Object();
     private String mp3FilePath = Environment.getExternalStorageDirectory().getAbsolutePath() + "/test.mp3";
+    private String mp4FilePath = Environment.getExternalStorageDirectory().getAbsolutePath() + "/test.mp4";
     private File medicCodecFile = null;
     private MediaPlayer mMediaPlayer;
     private Button mediaPlayerBtn, audioTrackBtn, recodeAudioBtn, playRecodeAudioBtn,
-            mediaCodecBtn, playMediaCodecBtn, recodeMixBtn, playNeedMixedBtn, playMixBtn;
+            mediaCodecBtn, playMediaCodecBtn, recodeMixBtn, playNeedMixedBtn, playMixBtn,
+            videoAudioWithPlayBtn,videoAudioWithoutPlayBtn;
 
     private PlayTask mPlayer;
     private RecordTask mRecorder;
@@ -126,6 +127,8 @@ public class MainActivity extends AppCompatActivity {
         recodeMixBtn = (Button) findViewById(R.id.recode_mix_audio);
         playNeedMixedBtn = (Button) findViewById(R.id.play_bg_audio);
         playMixBtn = (Button) findViewById(R.id.play_mix_audio);
+        videoAudioWithPlayBtn = (Button) findViewById(R.id.mix_audio_in_video_with_play);
+        videoAudioWithoutPlayBtn = (Button) findViewById(R.id.mix_audio_in_video_without_play);
 
         medicCodecFile = new File(Environment.getExternalStorageDirectory(), "test_media_audio.mp3"); // m4a");
     }
@@ -346,6 +349,38 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * 混合视频中的 音频 ，混合播放中的背景音乐
+     * 播出来多少，写入多少 需要 initMixAudioPlayer() 配合
+     *
+     */
+    public void mixAudioInVideoWithPlay(View view) {
+        MixAudioInVideo mMixAudioInVideo = new MixAudioInVideo(mp4FilePath);
+        mMixAudioInVideo.startMixAudioInVideoWithPlay();// 视频帧不处理
+        // todo 传入播放的数据
+    }
+
+    /**
+     * 混合视频中的 音频 ，混合选中的背景音乐
+     * 这里需要做个判断，这两个文件的长度肯定是不一样的
+     * 如果视频中的长度长，写入的 背景音乐 有循环播放 和 播放一次的设置
+     */
+    public void mixAudioInVideoWithoutPlay(View view) {
+        MixAudioInVideo mMixAudioInVideo = new MixAudioInVideo(mp4FilePath);
+        mMixAudioInVideo.setMixListener(new MixAudioInVideo.MixListener() {
+            @Override
+            public void onFinished() {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(MainActivity.this,"mix success ",Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+        });
+        mMixAudioInVideo.startMixAudioInVideoWithoutPlay(mp3FilePath,true);// 视频帧不处理
+    }
+
     private static int[] mSampleRates = new int[]{8000, 11025, 22050, 44100};
 
     public AudioRecord findAudioRecord() {
@@ -372,6 +407,7 @@ public class MainActivity extends AppCompatActivity {
         }
         return null;
     }
+
 
     class RecordTask extends AsyncTask<Void, Integer, Void> {
         @Override
@@ -502,6 +538,7 @@ public class MainActivity extends AppCompatActivity {
                         mFrequence,
                         AudioFormat.CHANNEL_IN_STEREO, mAudioEncoding, bufferSize,
                         AudioTrack.MODE_STREAM);
+                track.setStereoVolume(0.7f,0.7f);//设置当前音量大小
                 // 开始播放
                 track.play();
                 // 由于AudioTrack播放的是流，所以，我们需要一边播放一边读取
@@ -821,57 +858,11 @@ public class MainActivity extends AppCompatActivity {
     private byte[] mixBuffer(byte[] buffer) {
         if(mIsPlaying && mHasFrameBytes){
 //            return getBackGroundBytes(); // 直接写入背景音乐数据
-            return averageMix(new byte[][]{buffer,getBackGroundBytes()});
+            return BytesTransUtil.INSTANCE.averageMix(buffer,getBackGroundBytes());
         }
         return buffer;
     }
 
-    /**
-     * 采用简单的平均算法 average audio mixing algorithm
-     * code from :    http://www.codexiu.cn/android/blog/3618/
-     * 测试发现这种算法会降低 录制的音量
-     */
-    private byte[] averageMix(byte[][] bMulRoadAudioes) {
-
-        if (bMulRoadAudioes == null || bMulRoadAudioes.length == 0)
-            return null;
-        byte[] realMixAudio = bMulRoadAudioes[0];
-
-        if (bMulRoadAudioes.length == 1)
-            return realMixAudio;
-
-        for (int rw = 0; rw < bMulRoadAudioes.length; ++rw) {
-            if (bMulRoadAudioes[rw].length != realMixAudio.length) {
-                Log.e("app", "column of the road of audio + " + rw + " is diffrent.");
-                return null;
-            }
-        }
-
-        int row = bMulRoadAudioes.length;
-        int coloum = realMixAudio.length / 2;
-        short[][] sMulRoadAudioes = new short[row][coloum];
-        for (int r = 0; r < row; ++r) {
-            for (int c = 0; c < coloum; ++c) {
-                sMulRoadAudioes[r][c] = (short) ((bMulRoadAudioes[r][c * 2] & 0xff) | (bMulRoadAudioes[r][c * 2 + 1] & 0xff) << 8);
-            }
-        }
-        short[] sMixAudio = new short[coloum];
-        int mixVal;
-        int sr = 0;
-        for (int sc = 0; sc < coloum; ++sc) {
-            mixVal = 0;
-            sr = 0;
-            for (; sr < row; ++sr) {
-                mixVal += sMulRoadAudioes[sr][sc];
-            }
-            sMixAudio[sc] = (short) (mixVal / row);
-        }
-        for (sr = 0; sr < coloum; ++sr) {
-            realMixAudio[sr * 2] = (byte) (sMixAudio[sr] & 0x00FF);
-            realMixAudio[sr * 2 + 1] = (byte) ((sMixAudio[sr] & 0xFF00) >> 8);
-        }
-        return realMixAudio;
-    }
 
 
     public interface BackGroundFrameListener {
@@ -896,6 +887,6 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
-        finish();
+        android.os.Process.killProcess(android.os.Process.myPid());
     }
 }

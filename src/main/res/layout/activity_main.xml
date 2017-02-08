@@ -94,6 +94,23 @@
             android:text="recode_mix_audio"
             android:textAllCaps="false" />
 
+
+        <Button
+            android:id="@+id/mix_audio_in_video_with_play"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:onClick="mixAudioInVideoWithPlay"
+            android:text="MixAudioInVideoWithPlay"
+            android:textAllCaps="false" />
+
+        <Button
+            android:id="@+id/mix_audio_in_video_without_play"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:onClick="mixAudioInVideoWithoutPlay"
+            android:text="MixAudioInVideoWithoutPlay"
+            android:textAllCaps="false" />
+
     </LinearLayout>
 </ScrollView>
 

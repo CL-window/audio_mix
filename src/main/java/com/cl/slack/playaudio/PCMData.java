@@ -12,7 +12,7 @@ import java.util.Objects;
 /**
  * Created by slack
  * on 17/2/7 上午11:11.
- * mp3 --> pcm data
+ * mp3／mp4 --> audio pcm data
  */
 
 public class PCMData {
@@ -29,8 +29,13 @@ public class PCMData {
     private ByteBuffer[] decodeInputBuffers;
     private ByteBuffer[] decodeOutputBuffers;
     private MediaCodec.BufferInfo decodeBufferInfo;
-    boolean sawInputEOS = false;
-    boolean sawOutputEOS = false;
+    private boolean sawInputEOS = false;
+
+    public boolean isPCMExtractorEOS() {
+        return sawOutputEOS;
+    }
+
+    private boolean sawOutputEOS = false;
 
     private String mp3FilePath;
 
@@ -52,6 +57,7 @@ public class PCMData {
     }
 
     public PCMData release(){
+        sawOutputEOS = true;
         chunkPCMDataContainer.clear();
         return this;
     }
@@ -175,6 +181,7 @@ public class PCMData {
 
                     if ((decodeBufferInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
                         sawOutputEOS = true;
+                        Log.i("slack","pcm finished...");
                     }
 
                 } else if (outputIndex == MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED) {
