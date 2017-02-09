@@ -128,26 +128,27 @@ public class AudioEncoder {
         if (audioBytesReceived == 0) {
             audioStartTime = System.nanoTime();
         }
-        audioBytesReceived += input.length;
+        if(input != null) {
+            audioBytesReceived += input.length;
+        }
         drainEncoder(mAudioCodec, mAudioBufferInfo, mAudioTrackIndex, false);
         try {
             ByteBuffer[] inputBuffers = mAudioCodec.getInputBuffers();
             int inputBufferIndex = mAudioCodec.dequeueInputBuffer(-1);
 //            Log.d(TAG, "inputBufferIndex--" + inputBufferIndex);
             if (inputBufferIndex >= 0) {
-                ByteBuffer inputBuffer = inputBuffers[inputBufferIndex];
-                inputBuffer.clear();
-                inputBuffer.put(input);
+                if(input != null) {
+                    ByteBuffer inputBuffer = inputBuffers[inputBufferIndex];
+                    inputBuffer.clear();
+                    inputBuffer.put(input);
+                }
 
                 //录音时长
                 long presentationTimeUs = (System.nanoTime() - audioStartTime) / 1000L;
 //                Log.d(TAG, "presentationTimeUs--" + presentationTimeUs);
                 if (eosReceived) {
-                    mAudioCodec.queueInputBuffer(inputBufferIndex, 0, input.length, presentationTimeUs, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
-                    closeEncoder(mAudioCodec, mAudioBufferInfo, mAudioTrackIndex);
-                    closeMuxer();
-                    encodingService.shutdown();
-
+                    mAudioCodec.queueInputBuffer(inputBufferIndex, 0, 0, presentationTimeUs, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                    finishMuxer();
                 } else {
                     mAudioCodec.queueInputBuffer(inputBufferIndex, 0, input.length, presentationTimeUs, 0);
                 }
@@ -157,6 +158,12 @@ public class AudioEncoder {
             Log.e(TAG, "_offerAudioEncoder exception " + t.getMessage());
         }
 
+    }
+
+    private void finishMuxer() {
+        closeEncoder(mAudioCodec, mAudioBufferInfo, mAudioTrackIndex);
+        closeMuxer();
+        encodingService.shutdown();
     }
 
     private void _offerAudioEncoder(ByteBuffer buffer, int length, long pts) {
@@ -180,10 +187,8 @@ public class AudioEncoder {
                 long presentationTimeUs = (pts - audioStartTime) / 1000;
 //                Log.d(TAG, "presentationTimeUs--" + presentationTimeUs);
                 if (eosReceived) {
-                    mAudioCodec.queueInputBuffer(inputBufferIndex, 0, length, presentationTimeUs, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
-                    closeEncoder(mAudioCodec, mAudioBufferInfo, mAudioTrackIndex);
-                    closeMuxer();
-                    encodingService.shutdown();
+                    mAudioCodec.queueInputBuffer(inputBufferIndex, 0, 0, presentationTimeUs, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                    finishMuxer();
 
                 } else {
                     mAudioCodec.queueInputBuffer(inputBufferIndex, 0, length, presentationTimeUs, 0);
@@ -296,6 +301,7 @@ public class AudioEncoder {
     //终止编码
     private void _stop() {
         eosReceived = true;
+        offerAudioEncoderSyn(null);
         Log.d(TAG, "停止编码");
     }
 
@@ -353,7 +359,7 @@ public class AudioEncoder {
                 audio_data = null;
             } else if (byteBuffer != null && encoder != null) {
                 encoder._offerAudioEncoder(byteBuffer, length, pts);
-                audio_data = null;
+                byteBuffer.clear();
             }
 
         }
