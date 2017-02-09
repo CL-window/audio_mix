@@ -1,9 +1,7 @@
 package com.cl.slack.playaudio;
 
-import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
-import android.media.MediaMuxer;
 import android.os.Environment;
 import android.util.Log;
 
@@ -18,7 +16,7 @@ import java.nio.ByteBuffer;
  * 合成 视频中的音频 需要先从mp4 分离音频
  */
 
-public class MixAudioInVideo {
+class MixAudioInVideo {
 
     private String srcPath;// mp4 file path
     private static final File SDCARD_PATH = new File(Environment.getExternalStorageDirectory(), "slack");
@@ -31,18 +29,52 @@ public class MixAudioInVideo {
 
     private MixListener mMixListener;
 
-    public MixAudioInVideo(String filePath) {
+    private PlayBackMusic mPlayBackMusic;
+    private boolean mixStop = false;
+
+    MixAudioInVideo(String filePath) {
         srcPath = filePath;
 //        extractorMedia();
         extractorAudio();
     }
 
-    public void setMixListener(MixListener mMixListener) {
+    MixAudioInVideo setMixListener(MixListener mMixListener) {
         this.mMixListener = mMixListener;
+        return this;
     }
 
-    public void startMixAudioInVideoWithPlay(){
+    MixAudioInVideo playBackMusic(String path){
+        if(mPlayBackMusic != null){
+            mPlayBackMusic.release();
+        }
+        mPlayBackMusic = new PlayBackMusic(path);
+        mPlayBackMusic.startPlayBackMusic();
+        mPlayBackMusic.setNeedRecodeDataEnable(true); //
+        return this;
+    }
 
+    MixAudioInVideo startMixAudioInVideoWithPlay(){
+        mixStop = false;
+        initAudioEncoder("with_play");
+        mixAudioInVideoWithPlay();
+        return this;
+    }
+
+    MixAudioInVideo stop(){
+        if(mPlayBackMusic != null) {
+            mPlayBackMusic.release();
+        }
+        mixStop = true;
+        return this;
+    }
+
+    private void mixAudioInVideoWithPlay() {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                writeBackDataOnly();
+            }
+        }).start();
     }
 
     /**
@@ -50,29 +82,71 @@ public class MixAudioInVideo {
      * @param mp3FilePath 需要写入的背景音乐
      * @param loop 背景音乐是否循环（背景音乐短而mp4音频长时需要用到）
      */
-    public void startMixAudioInVideoWithoutPlay(String mp3FilePath,boolean loop){
+    void startMixAudioInVideoWithoutPlay(String mp3FilePath, boolean loop){
         mBackLoop = loop;
         mBackPCMData = new PCMData(mp3FilePath);
         new Thread(new Runnable() {
             @Override
             public void run() {
                 mBackPCMData.startPcmExtractor();
+                initAudioEncoder("with_out_play");
                 mixData();
             }
         }).start();
     }
 
-    private AudioEncoder mAudioEncoder; // test
-    private void mixData() {
+    private void initAudioEncoder(String fileName) {
         if (!SDCARD_PATH.exists()) {
-            SDCARD_PATH.mkdirs();
+            if(!SDCARD_PATH.mkdirs()){
+                Log.e("slack","mk dirs error");
+            }
         }
-        File test = new File(SDCARD_PATH,"test.mp3");
+        File test = new File(SDCARD_PATH,fileName + ".mp3");
         mAudioEncoder = new AudioEncoder(test.getAbsolutePath());
         mAudioEncoder.prepareEncoder();
+    }
 
-        byte[] src = mPCMData.getPCMData();
-        byte[] back = mBackPCMData.getPCMData();
+    private void writeBackDataOnly() {
+
+//        byte[] src = null;
+        byte[] back = null;
+
+        // 判断条件有些问题
+        while (!mixStop ) {
+
+            // write origin data is ok
+//            src = mPCMData.getPCMData();
+//            if(src == null && mPCMData.isPCMExtractorEOS()){
+//                break;
+//            }
+            back = mPlayBackMusic.getBackGroundBytes();
+
+            if(back == null){
+                Log.i("slack","continue mix write data...");
+                try {
+                    Thread.sleep(200);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                continue;
+            }
+
+            // test 写入 mp3
+            mAudioEncoder.offerAudioEncoderSyn(back);
+
+        }
+        Log.i("slack","finish while...");
+        mAudioEncoder.stop();
+        if(mMixListener != null){
+            mMixListener.onFinished();
+        }
+    }
+
+    private AudioEncoder mAudioEncoder; // test
+    private void mixData() {
+
+        byte[] src = null;
+        byte[] back = null;
         byte[] des;
         /**
          * 原视频 还有数据没有读完,或者背景音乐还有数据没有读完
@@ -81,7 +155,10 @@ public class MixAudioInVideo {
         while (src != null || back != null ||
                 !mPCMData.isPCMExtractorEOS() || !mBackPCMData.isPCMExtractorEOS()) {
 
-            if (src == null && mPCMData.isPCMExtractorEOS()) {
+            src = mPCMData.getPCMData();
+            back = mBackPCMData.getPCMData();
+
+            if (mixStop || (src == null && mPCMData.isPCMExtractorEOS())) {
                 Log.i("slack","end mix write data...");
                 // end of the mix
                 mBackPCMData.release();
@@ -92,10 +169,17 @@ public class MixAudioInVideo {
                 break;
             }
             // 防止两个文件都在读取的过程中
-            if(src == null && back == null){
+//            if(src == null && back == null){
+            if( back == null){
                 Log.i("slack","continue mix write data...");
+                try {
+                    Thread.sleep(200);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
                 continue;
             }
+
             // 判断是否需要合成
 //            if (back == null) {
 //                if (mBackPCMData.isPCMExtractorEOS() && mBackLoop) {
@@ -105,14 +189,13 @@ public class MixAudioInVideo {
 //            } else {
 //                des = BytesTransUtil.INSTANCE.averageMix(back,src);
 //            }
-            des = back;
-            // 写入 mp4
+//            des = src;// only src data ok
+            des = back; // only back error 写入的数据貌似丢帧了
+            // test 写入 mp3
             mAudioEncoder.offerAudioEncoderSyn(des);
             Log.i("slack","mix write data...");
-            src = mPCMData.getPCMData();
-            back = mBackPCMData.getPCMData();
         }
-
+        Log.i("slack","finish while...");
     }
 
     /**
@@ -209,7 +292,7 @@ public class MixAudioInVideo {
         }
     }
 
-    public interface MixListener{
+    interface MixListener{
         void onFinished();
     }
 }

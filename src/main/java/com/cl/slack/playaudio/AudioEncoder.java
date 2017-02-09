@@ -17,7 +17,7 @@ import java.util.concurrent.Executors;
  * 对音频数据进行编码
  * MediaCodec & MediaMuxer write data
  */
-public class AudioEncoder {
+class AudioEncoder {
     private static final String TAG = "AudioEncoder";
     //编码
     private MediaCodec mAudioCodec;     //音频编解码器
@@ -41,7 +41,7 @@ public class AudioEncoder {
         ENCODE_FRAME, FINALIZE_ENCODER
     }
 
-    public AudioEncoder(String filePath) {
+    AudioEncoder(String filePath) {
         recordFile = filePath;
 //        prepareEncoder();
     }
@@ -50,7 +50,7 @@ public class AudioEncoder {
         int index = 0;
     }
 
-    public void prepareEncoder() {
+    void prepareEncoder() {
         eosReceived = false;
         audioBytesReceived = 0;
         mAudioBufferInfo = new MediaCodec.BufferInfo();
@@ -101,7 +101,7 @@ public class AudioEncoder {
     }
 
     //此方法 由AudioRecorder任务调用 开启编码任务
-    public void offerAudioEncoder(byte[] input, long presentationTimeStampNs) {
+    void offerAudioEncoder(byte[] input, long presentationTimeStampNs) {
         if (!encodingService.isShutdown()) {
 //            Log.d(TAG, "encodingServiceEncoding--submit: " + input.length + "  " + presentationTimeStampNs) ;
             encodingService.submit(new AudioEncodeTask(this, input, presentationTimeStampNs));
@@ -112,11 +112,11 @@ public class AudioEncoder {
     /**
      * 同步操作
      */
-    public void offerAudioEncoderSyn(byte[] input) {
+    void offerAudioEncoderSyn(byte[] input) {
         _offerAudioEncoder(input, 0);
     }
 
-    public void offerAudioEncoder(ByteBuffer buffer, long presentationTimeStampNs, int length) {
+    void offerAudioEncoder(ByteBuffer buffer, long presentationTimeStampNs, int length) {
         if (!encodingService.isShutdown()) {
             encodingService.submit(new AudioEncodeTask(this, buffer, length, presentationTimeStampNs));
         }
@@ -149,7 +149,7 @@ public class AudioEncoder {
                 if (eosReceived) {
                     mAudioCodec.queueInputBuffer(inputBufferIndex, 0, 0, presentationTimeUs, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
                     finishMuxer();
-                } else {
+                } else if(input != null){
                     mAudioCodec.queueInputBuffer(inputBufferIndex, 0, input.length, presentationTimeUs, 0);
                 }
             }
@@ -260,23 +260,18 @@ public class AudioEncoder {
             }
         } catch (Exception e) {
             e.printStackTrace();
-            Log.e("slack", "error :: " + e.getMessage());
+            Log.e(TAG, "error :: " + e.getMessage());
         }
 
     }
 
     /**
      * 关闭编码
-     *
-     * @param encoder
-     * @param bufferInfo
      */
     private void closeEncoder(MediaCodec encoder, MediaCodec.BufferInfo bufferInfo, TrackIndex trackIndex) {
         drainEncoder(encoder, bufferInfo, trackIndex, true);
         encoder.stop();
         encoder.release();
-        encoder = null;
-
     }
 
     /**
@@ -292,7 +287,7 @@ public class AudioEncoder {
     }
 
     //发送终止编码信息
-    public void stop() {
+    void stop() {
         if (!encodingService.isShutdown()) {
             encodingService.submit(new AudioEncodeTask(this, EncoderTaskType.FINALIZE_ENCODER));
         }

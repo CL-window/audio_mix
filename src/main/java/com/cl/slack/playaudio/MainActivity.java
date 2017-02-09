@@ -48,28 +48,21 @@ import javazoom.jl.decoder.Header;
 import javazoom.jl.decoder.SampleBuffer;
 
 /**
- *
  * @author slack
  * @time 17/2/6 下午1:47
  */
 public class MainActivity extends AppCompatActivity {
 
-    private static final Object lockBGMusic = new Object();
     private String mp3FilePath = Environment.getExternalStorageDirectory().getAbsolutePath() + "/test.mp3";
     private String mp4FilePath = Environment.getExternalStorageDirectory().getAbsolutePath() + "/test.mp4";
     private File medicCodecFile = null;
     private MediaPlayer mMediaPlayer;
     private Button mediaPlayerBtn, audioTrackBtn, recodeAudioBtn, playRecodeAudioBtn,
             mediaCodecBtn, playMediaCodecBtn, recodeMixBtn, playNeedMixedBtn, playMixBtn,
-            videoAudioWithPlayBtn,videoAudioWithoutPlayBtn;
+            videoAudioWithPlayBtn, videoAudioWithoutPlayBtn;
 
-    private PlayTask mPlayer;
-    private RecordTask mRecorder;
-    private PlayPCMTask mPlayPCMTask;
     private RecordMediaCodecTask mRecordMediaCodecTask;
-    private RecordMediaCodecByteBufferTask mRecordMediaCodecByteBufferTask;
     private RecordMixTask mRecordMixTask;
-    private PlayNeedMixAudioTask mPlayNeedMixAudioTask;
     private File mAudioFile = null;
     private boolean mIsRecording = false, mIsPlaying = false;
     private int mFrequence = 44100;
@@ -80,36 +73,8 @@ public class MainActivity extends AppCompatActivity {
 
     private AudioEncoder mAudioEncoder;
 
-    private Queue<byte[]> backGroundBytes = new ArrayDeque<>();
-    private boolean mHasFrameBytes;
 
-    private PCMData mPCMData = new PCMData(mp3FilePath);;
-
-    public byte[] getBackGroundBytes() {
-        synchronized (lockBGMusic){
-            if (backGroundBytes.isEmpty()) {
-                return null;
-            }
-            // poll 如果队列为空，则返回null
-            byte[] temp = backGroundBytes.poll();
-            if(temp == null){
-                mHasFrameBytes = false;
-            }
-            return temp;
-        }
-    }
-
-    /**
-     * 这样的方式控制同步 需要添加到队列时判断同时在播放和录制
-     */
-    public void addBackGroundBytes(byte[] bytes) {
-        synchronized (lockBGMusic){
-            if(mIsPlaying && mIsRecording){
-                backGroundBytes.add(bytes);
-            }
-        }
-    }
-
+    private PlayBackMusic mPlayBackMusic = new PlayBackMusic(mp3FilePath);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -142,7 +107,7 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onDenied(String permission) {
-                String message ="Permission "+permission+" has been denied.";
+                String message = "Permission " + permission + " has been denied.";
                 Toast.makeText(MainActivity.this, message, Toast.LENGTH_SHORT).show();
             }
         });
@@ -190,7 +155,7 @@ public class MainActivity extends AppCompatActivity {
         if (audioTrackBtn.getTag() == null) {
             audioTrackBtn.setText("stop");
             audioTrackBtn.setTag(this);
-            mPlayer = new PlayTask();
+            PlayTask mPlayer = new PlayTask();
             mPlayer.execute();
         } else {
             audioTrackBtn.setText("play");
@@ -213,7 +178,7 @@ public class MainActivity extends AppCompatActivity {
                 // TODO Auto-generated catch block
                 e.printStackTrace();
             }
-            mRecorder = new RecordTask();
+            RecordTask mRecorder = new RecordTask();
             mRecorder.execute();
         } else {
             recodeAudioBtn.setText("recode");
@@ -232,7 +197,7 @@ public class MainActivity extends AppCompatActivity {
         if (playRecodeAudioBtn.getTag() == null) {
             playRecodeAudioBtn.setText("stop");
             playRecodeAudioBtn.setTag(this);
-            mPlayPCMTask = new PlayPCMTask();
+            PlayPCMTask mPlayPCMTask = new PlayPCMTask();
             mPlayPCMTask.execute();
         } else {
             playRecodeAudioBtn.setText("play");
@@ -252,7 +217,7 @@ public class MainActivity extends AppCompatActivity {
             mAudioEncoder.prepareEncoder();
 //            mRecordMediaCodecTask = new RecordMediaCodecTask();
 //            mRecordMediaCodecTask.execute();
-            mRecordMediaCodecByteBufferTask = new RecordMediaCodecByteBufferTask();
+            RecordMediaCodecByteBufferTask mRecordMediaCodecByteBufferTask = new RecordMediaCodecByteBufferTask();
             mRecordMediaCodecByteBufferTask.execute();
         } else {
             mediaCodecBtn.setText("recode");
@@ -278,35 +243,14 @@ public class MainActivity extends AppCompatActivity {
         if (playNeedMixedBtn.getTag() == null) {
             playNeedMixedBtn.setText("stop");
             playNeedMixedBtn.setTag(this);
-            mHasFrameBytes = false;
-            initPCMData();
-            initMixAudioPlayer();
+            mPlayBackMusic.startPlayBackMusic();
         } else {
             playNeedMixedBtn.setText("play");
-            mIsPlaying = false;
             playNeedMixedBtn.setTag(null);
-            mPCMData.release();
+            mPlayBackMusic.release();
         }
     }
 
-    private void initMixAudioPlayer() {
-        mPlayNeedMixAudioTask = new PlayNeedMixAudioTask(new BackGroundFrameListener() {
-
-            @Override
-            public void onFrameArrive(byte[] bytes) {
-                mHasFrameBytes = true;
-                addBackGroundBytes(bytes);
-            }
-        });
-        mPlayNeedMixAudioTask.start();
-    }
-
-    /**
-     * 解析 mp3 --> pcm
-     */
-    private void initPCMData() {
-        mPCMData.startPcmExtractor();
-    }
 
     /**
      * 混合音频
@@ -328,10 +272,12 @@ public class MainActivity extends AppCompatActivity {
 //            }
             mRecordMixTask = new RecordMixTask();
             mRecordMixTask.execute();
+            mPlayBackMusic.setNeedRecodeDataEnable(true);
         } else {
             recodeMixBtn.setText("recode");
             recodeMixBtn.setTag(null);
             mIsRecording = false;
+            mPlayBackMusic.setNeedRecodeDataEnable(false);
             mAudioEncoder.stop();
             mRecordMixTask.cancel(true);
         }
@@ -352,12 +298,31 @@ public class MainActivity extends AppCompatActivity {
     /**
      * 混合视频中的 音频 ，混合播放中的背景音乐
      * 播出来多少，写入多少 需要 initMixAudioPlayer() 配合
-     *
      */
+    MixAudioInVideo mMixAudioInVideo;
     public void mixAudioInVideoWithPlay(View view) {
-        MixAudioInVideo mMixAudioInVideo = new MixAudioInVideo(mp4FilePath);
-        mMixAudioInVideo.startMixAudioInVideoWithPlay();// 视频帧不处理
-        // todo 传入播放的数据
+        if(videoAudioWithPlayBtn.getTag() == null) {
+            videoAudioWithPlayBtn.setTag(this);
+            videoAudioWithPlayBtn.setText("stop");
+            mMixAudioInVideo = new MixAudioInVideo(mp4FilePath);
+            mMixAudioInVideo.playBackMusic(mp3FilePath)
+                    .setMixListener(new MixAudioInVideo.MixListener() {
+                        @Override
+                        public void onFinished() {
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    Toast.makeText(MainActivity.this, "mix success ", Toast.LENGTH_SHORT).show();
+                                }
+                            });
+                        }
+                    })
+                    .startMixAudioInVideoWithPlay();// 视频帧不处理
+        }else {
+            videoAudioWithPlayBtn.setTag(null);
+            videoAudioWithPlayBtn.setText("start");
+            mMixAudioInVideo.stop();
+        }
     }
 
     /**
@@ -366,19 +331,28 @@ public class MainActivity extends AppCompatActivity {
      * 如果视频中的长度长，写入的 背景音乐 有循环播放 和 播放一次的设置
      */
     public void mixAudioInVideoWithoutPlay(View view) {
-        MixAudioInVideo mMixAudioInVideo = new MixAudioInVideo(mp4FilePath);
-        mMixAudioInVideo.setMixListener(new MixAudioInVideo.MixListener() {
-            @Override
-            public void onFinished() {
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        Toast.makeText(MainActivity.this,"mix success ",Toast.LENGTH_SHORT).show();
-                    }
-                });
-            }
-        });
-        mMixAudioInVideo.startMixAudioInVideoWithoutPlay(mp3FilePath,true);// 视频帧不处理
+        if(videoAudioWithoutPlayBtn.getTag() == null) {
+            videoAudioWithoutPlayBtn.setTag(this);
+            videoAudioWithoutPlayBtn.setText("stop");
+            mMixAudioInVideo = new MixAudioInVideo(mp4FilePath);
+            mMixAudioInVideo.setMixListener(new MixAudioInVideo.MixListener() {
+                @Override
+                public void onFinished() {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            Toast.makeText(MainActivity.this, "mix success ", Toast.LENGTH_SHORT).show();
+                        }
+                    });
+                }
+            });
+            mMixAudioInVideo.startMixAudioInVideoWithoutPlay(mp3FilePath, true);// 视频帧不处理
+        }else {
+            videoAudioWithoutPlayBtn.setTag(null);
+            videoAudioWithoutPlayBtn.setText("start");
+            mMixAudioInVideo.stop();
+        }
+
     }
 
     private static int[] mSampleRates = new int[]{8000, 11025, 22050, 44100};
@@ -538,7 +512,7 @@ public class MainActivity extends AppCompatActivity {
                         mFrequence,
                         AudioFormat.CHANNEL_IN_STEREO, mAudioEncoding, bufferSize,
                         AudioTrack.MODE_STREAM);
-                track.setStereoVolume(0.7f,0.7f);//设置当前音量大小
+                track.setStereoVolume(0.7f, 0.7f);//设置当前音量大小
                 // 开始播放
                 track.play();
                 // 由于AudioTrack播放的是流，所以，我们需要一边播放一边读取
@@ -756,7 +730,7 @@ public class MainActivity extends AppCompatActivity {
 
                     audioPresentationTimeNs = System.nanoTime();
 
-                    int samples_per_frame = mPCMData.getBufferSize(); // 这里需要与 背景音乐读取出来的数据长度 一样
+                    int samples_per_frame = mPlayBackMusic.getBufferSize(); // 这里需要与 背景音乐读取出来的数据长度 一样
                     byte[] buffer = new byte[samples_per_frame];
                     //从缓冲区中读取数据，存入到buffer字节数组数组中
                     bufferReadResult = record.read(buffer, 0, buffer.length);
@@ -799,74 +773,16 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    /**
-     * 虽然可以新建多个 AsyncTask的子类的实例，但是AsyncTask的内部Handler和ThreadPoolExecutor都是static的，
-     * 这么定义的变 量属于类的，是进程范围内共享的，所以AsyncTask控制着进程范围内所有的子类实例，
-     * 而且该类的所有实例都共用一个线程池和Handler
-     * 这里新开一个线程
-     * 自己解析出来 pcm data
-     */
-    class PlayNeedMixAudioTask extends Thread {
-
-        private BackGroundFrameListener listener;
-        private long audioPresentationTimeNs; //音频时间戳 pts
-
-        public PlayNeedMixAudioTask(BackGroundFrameListener l) {
-            listener = l;
-        }
-
-        @Override
-        public void run() {
-            Log.i("thread", "PlayNeedMixAudioTask: " + Thread.currentThread().getId());
-            mIsPlaying = true;
-            try {
-                int bufferSize = AudioTrack.getMinBufferSize(mFrequence,
-                        mPlayChannelConfig, mAudioEncoding);
-                // 实例AudioTrack
-                AudioTrack track = new AudioTrack(AudioManager.STREAM_MUSIC,
-                        mFrequence,
-                        mPlayChannelConfig, mAudioEncoding, bufferSize,
-                        AudioTrack.MODE_STREAM);
-                // 开始播放
-                track.play();
-
-                while (mIsPlaying) {
-                    audioPresentationTimeNs = System.nanoTime();
-                    byte[] temp = mPCMData.getPCMData();
-                    if (temp == null) {
-                        continue;
-                    }
-                    track.write(temp, 0, temp.length);
-                    if (listener != null) {
-                        listener.onFrameArrive(temp);
-                    }
-                }
-
-                mHasFrameBytes = false;
-                track.stop();
-                track.release();
-            } catch (Exception e) {
-                // TODO: handle exception
-                Log.e("slack", "error:" + e.getMessage());
-            }
-        }
-    }
 
     /**
      * 混合 音频
      */
     private byte[] mixBuffer(byte[] buffer) {
-        if(mIsPlaying && mHasFrameBytes){
+        if (mPlayBackMusic.hasFrameBytes()) {
 //            return getBackGroundBytes(); // 直接写入背景音乐数据
-            return BytesTransUtil.INSTANCE.averageMix(buffer,getBackGroundBytes());
+            return BytesTransUtil.INSTANCE.averageMix(buffer, mPlayBackMusic.getBackGroundBytes());
         }
         return buffer;
-    }
-
-
-
-    public interface BackGroundFrameListener {
-        void onFrameArrive(byte[] bytes);
     }
 
     private void releaseMediaPlayer() {

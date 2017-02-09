@@ -5,8 +5,8 @@ import android.media.AudioManager;
 import android.media.AudioTrack;
 import android.util.Log;
 
-import java.util.ArrayDeque;
 import java.util.Queue;
+import java.util.concurrent.LinkedBlockingDeque;
 
 /**
  * Created by slack
@@ -14,52 +14,65 @@ import java.util.Queue;
  * 播放背景音乐
  */
 
-public class PlayBackMusic {
+class PlayBackMusic {
 
-    private static final Object lockBGMusic = new Object();
+    private static final String TAG = "PlayBackMusic";
     private PCMData mPCMData;
-    private Queue<byte[]> backGroundBytes = new ArrayDeque<>();
+    private Queue<byte[]> backGroundBytes = new LinkedBlockingDeque<>();//new ArrayDeque<>();// ArrayDeque不是线程安全的
 
     private static final int mFrequence = 44100;
     private static final int mPlayChannelConfig = AudioFormat.CHANNEL_OUT_STEREO;
     private static final int mAudioEncoding = AudioFormat.ENCODING_PCM_16BIT;//一个采样点16比特-2个字节
 
-    private boolean mIsPlaying  = false,mIsRecording = false;
+    private boolean mIsPlaying = false;
+    private boolean mIsRecording = false;
 
-    public PlayBackMusic(String path) {
+    PlayBackMusic(String path) {
         mPCMData = new PCMData(path);
     }
 
-    public byte[] getBackGroundBytes() {
-        synchronized (lockBGMusic){
-            if (backGroundBytes.isEmpty()) {
-                return null;
-            }
-            // poll 如果队列为空，则返回null
-            return backGroundBytes.poll();
+    byte[] getBackGroundBytes() {
+        byte[] temp = null;
+        if (backGroundBytes.isEmpty()) {
+            return temp;
         }
+        // poll 如果队列为空，则返回null
+        temp = backGroundBytes.poll();
+//        Log.i(TAG,"getBackGroundBytes... "+ (temp == null ? "is" : "not") + " null");
+        return temp;
     }
 
-    public PlayBackMusic startPlayBackMusic(){
+    PlayBackMusic startPlayBackMusic() {
         initPCMData();
-        new PlayNeedMixAudioTask().start();
+        mIsPlaying = true;
+        new PlayNeedMixAudioTask(new BackGroundFrameListener() {
+
+            @Override
+            public void onFrameArrive(byte[] bytes) {
+                addBackGroundBytes(bytes);
+            }
+        }).start();
         return this;
     }
 
-    public boolean hasFrameBytes() {
-        return !backGroundBytes.isEmpty() && mIsPlaying;
+    boolean hasFrameBytes() {
+        return !backGroundBytes.isEmpty();
     }
 
-    public int getBufferSize(){
+    public boolean isPlayingMusic() {
+        return mIsPlaying;
+    }
+
+    int getBufferSize() {
         return mPCMData.getBufferSize();
     }
 
-    public PlayBackMusic setNeedRecodeDataEnable(boolean enable){
+    PlayBackMusic setNeedRecodeDataEnable(boolean enable) {
         mIsRecording = enable;
         return this;
     }
 
-    public PlayBackMusic release(){
+    PlayBackMusic release() {
         mIsPlaying = false;
         mPCMData.release();
         backGroundBytes.clear();
@@ -71,10 +84,8 @@ public class PlayBackMusic {
      * 这样的方式控制同步 需要添加到队列时判断同时在播放和录制
      */
     private void addBackGroundBytes(byte[] bytes) {
-        synchronized (lockBGMusic){
-            if(mIsPlaying && mIsRecording){
-                backGroundBytes.add(bytes);
-            }
+        if (mIsPlaying && mIsRecording) {
+            backGroundBytes.add(bytes);
         }
     }
 
@@ -92,12 +103,17 @@ public class PlayBackMusic {
      * 这里新开一个线程
      * 自己解析出来 pcm data
      */
-    class PlayNeedMixAudioTask extends Thread {
+    private class PlayNeedMixAudioTask extends Thread {
+
+        private BackGroundFrameListener listener;
+
+        PlayNeedMixAudioTask(BackGroundFrameListener l) {
+            listener = l;
+        }
 
         @Override
         public void run() {
             Log.i("thread", "PlayNeedMixAudioTask: " + Thread.currentThread().getId());
-            mIsPlaying = true;
             try {
                 int bufferSize = AudioTrack.getMinBufferSize(mFrequence,
                         mPlayChannelConfig, mAudioEncoding);
@@ -110,22 +126,29 @@ public class PlayBackMusic {
                 track.play();
 
                 while (mIsPlaying) {
-
+//                    Log.i("slack", "PlayNeedMixAudioTask..." + mIsPlaying);
                     byte[] temp = mPCMData.getPCMData();
                     if (temp == null) {
                         continue;
                     }
                     track.write(temp, 0, temp.length);
-                    addBackGroundBytes(temp);
+                    if (listener != null) {
+                        listener.onFrameArrive(temp);
+                    }
                 }
-
+//                Log.i("slack", "finish PlayNeedMixAudioTask..." + mIsPlaying);
                 track.stop();
                 track.release();
             } catch (Exception e) {
                 // TODO: handle exception
                 Log.e("slack", "error:" + e.getMessage());
+            } finally {
+                mIsPlaying = false;
             }
         }
     }
 
+    interface BackGroundFrameListener {
+        void onFrameArrive(byte[] bytes);
+    }
 }

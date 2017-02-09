@@ -7,6 +7,7 @@ import android.util.Log;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -15,7 +16,7 @@ import java.util.Objects;
  * mp3／mp4 --> audio pcm data
  */
 
-public class PCMData {
+class PCMData {
 
     /**
      * 初始化解码器
@@ -23,15 +24,14 @@ public class PCMData {
     private static final Object lockPCM = new Object();
     private static final int BUFFER_SIZE = 2048;
 
-    private ArrayList<PCM> chunkPCMDataContainer = new ArrayList<>();//PCM数据块容器
+    private List<PCM> chunkPCMDataContainer = new ArrayList<>();//PCM数据块容器
     private MediaExtractor mediaExtractor;
     private MediaCodec mediaDecode;
     private ByteBuffer[] decodeInputBuffers;
     private ByteBuffer[] decodeOutputBuffers;
     private MediaCodec.BufferInfo decodeBufferInfo;
-    private boolean sawInputEOS = false;
 
-    public boolean isPCMExtractorEOS() {
+    boolean isPCMExtractorEOS() {
         return sawOutputEOS;
     }
 
@@ -41,11 +41,11 @@ public class PCMData {
 
     private MediaFormat mMediaFormat;
 
-    public PCMData(String path) {
+    PCMData(String path) {
         mp3FilePath = path;
     }
 
-    public PCMData startPcmExtractor(){
+    PCMData startPcmExtractor(){
         initMediaDecode();
         new Thread(new Runnable() {
             @Override
@@ -56,13 +56,13 @@ public class PCMData {
         return this;
     }
 
-    public PCMData release(){
+    PCMData release(){
         sawOutputEOS = true;
         chunkPCMDataContainer.clear();
         return this;
     }
 
-    public byte[] getPCMData() {
+    byte[] getPCMData() {
         synchronized (lockPCM) {//记得加锁
             if (chunkPCMDataContainer.isEmpty()) {
                 return null;
@@ -77,7 +77,7 @@ public class PCMData {
     /**
      * 测试时发现 播放音频的 MediaCodec.BufferInfo.size 是变换的
      */
-    public int getBufferSize() {
+    int getBufferSize() {
         synchronized (lockPCM) {//记得加锁
             if (chunkPCMDataContainer.isEmpty()) {
                 return BUFFER_SIZE;
@@ -123,19 +123,18 @@ public class PCMData {
     private void putPCMData(byte[] pcmChunk,int bufferSize) {
         synchronized (lockPCM) {//记得加锁
             chunkPCMDataContainer.add(new PCM(pcmChunk,bufferSize));
+//            Log.i("slack","put pcm data ...");
         }
     }
 
 
     /**
      * 解码音频文件 得到PCM数据块
-     *
-     * @return 是否解码完所有数据
      */
     private void srcAudioFormatToPCM() {
 
         sawOutputEOS = false;
-        sawInputEOS = false;
+        boolean sawInputEOS = false;
         try {
             while (!sawOutputEOS) {
                 if (!sawInputEOS) {
@@ -159,35 +158,34 @@ public class PCMData {
                 //此处建议不要填-1 有些时候并没有数据输出，那么他就会一直卡在这 等待
                 int outputIndex = mediaDecode.dequeueOutputBuffer(decodeBufferInfo, 10000);
                 if (outputIndex >= 0) {
-                    int outputBufIndex = outputIndex;
                     // Simply ignore codec config buffers.
                     if ((decodeBufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
-                        mediaDecode.releaseOutputBuffer(outputBufIndex, false);
+                        mediaDecode.releaseOutputBuffer(outputIndex, false);
                         continue;
                     }
 
                     if (decodeBufferInfo.size != 0) {
 
-                        ByteBuffer outBuf = decodeOutputBuffers[outputBufIndex];//拿到用于存放PCM数据的Buffer
+                        ByteBuffer outBuf = decodeOutputBuffers[outputIndex];//拿到用于存放PCM数据的Buffer
 
                         outBuf.position(decodeBufferInfo.offset);
                         outBuf.limit(decodeBufferInfo.offset + decodeBufferInfo.size);
                         byte[] data = new byte[decodeBufferInfo.size];//BufferInfo内定义了此数据块的大小
                         outBuf.get(data);//将Buffer内的数据取出到字节数组中
+//                        Log.i("slack","try put pcm data ...");
                         putPCMData(data,decodeBufferInfo.size);//自己定义的方法，供编码器所在的线程获取数据,下面会贴出代码
                     }
 
-                    mediaDecode.releaseOutputBuffer(outputBufIndex, false);//此操作一定要做，不然MediaCodec用完所有的Buffer后 将不能向外输出数据
+                    mediaDecode.releaseOutputBuffer(outputIndex, false);//此操作一定要做，不然MediaCodec用完所有的Buffer后 将不能向外输出数据
 
                     if ((decodeBufferInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
                         sawOutputEOS = true;
-                        Log.i("slack","pcm finished...");
+                        Log.i("slack","pcm finished..." + mp3FilePath);
                     }
 
                 } else if (outputIndex == MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED) {
                     decodeOutputBuffers = mediaDecode.getOutputBuffers();
-                } else if (outputIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-
+//                } else if (outputIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
                 }
             }
         } finally {
@@ -201,8 +199,8 @@ public class PCMData {
     }
 
 
-    class PCM{
-        public PCM(byte[] bufferBytes, int bufferSize) {
+    private class PCM{
+        PCM(byte[] bufferBytes, int bufferSize) {
             this.bufferBytes = bufferBytes;
             this.bufferSize = bufferSize;
         }

@@ -9,7 +9,7 @@ import java.nio.ByteOrder;
  * on 17/2/7 下午4:54.
  */
 
-public enum  BytesTransUtil {
+enum  BytesTransUtil {
 
     INSTANCE;
 
@@ -18,9 +18,7 @@ public enum  BytesTransUtil {
         byte[] buf = new byte[s.length * bLength];
         for (int iLoop = 0; iLoop < s.length; iLoop++) {
             byte[] temp = getBytes(s[iLoop]);
-            for (int jLoop = 0; jLoop < bLength; jLoop++) {
-                buf[iLoop * bLength + jLoop] = temp[jLoop];
-            }
+            System.arraycopy(temp, 0, buf, iLoop * bLength, bLength);
         }
         return buf;
     }
@@ -30,9 +28,7 @@ public enum  BytesTransUtil {
         short[] s = new short[buf.length / bLength];
         for (int iLoop = 0; iLoop < s.length; iLoop++) {
             byte[] temp = new byte[bLength];
-            for (int jLoop = 0; jLoop < bLength; jLoop++) {
-                temp[jLoop] = buf[iLoop * bLength + jLoop];
-            }
+            System.arraycopy(buf, iLoop * bLength, temp, 0, bLength);
             s[iLoop] = getShort(temp);
         }
         return s;
@@ -101,7 +97,7 @@ public enum  BytesTransUtil {
         }
         short[] sMixAudio = new short[coloum];
         int mixVal;
-        int sr = 0;
+        int sr;
         for (int sc = 0; sc < coloum; ++sc) {
             mixVal = 0;
             sr = 0;
@@ -123,13 +119,7 @@ public enum  BytesTransUtil {
      * 大端小端 问题
      */
     private boolean thisCPU() {
-        if (ByteOrder.nativeOrder() == ByteOrder.BIG_ENDIAN) {
-            // System.out.println(is big ending);
-            return true;
-        } else {
-            // System.out.println(is little ending);
-            return false;
-        }
+        return ByteOrder.nativeOrder() == ByteOrder.BIG_ENDIAN;
     }
 
     private byte[] getBytes(long s, boolean bBigEnding) {
@@ -164,9 +154,9 @@ public enum  BytesTransUtil {
         }
         short r = 0;
         if (bBigEnding) {
-            for (int i = 0; i < buf.length; i++) {
+            for (byte aBuf : buf) {
                 r <<= 8;
-                r |= (buf[i] & 0x00ff);
+                r |= (aBuf & 0x00ff);
             }
         } else {
             for (int i = buf.length - 1; i >= 0; i--) {
