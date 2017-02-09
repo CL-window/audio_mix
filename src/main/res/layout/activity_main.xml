@@ -95,13 +95,24 @@
             android:textAllCaps="false" />
 
 
-        <Button
-            android:id="@+id/mix_audio_in_video_with_play"
+        <LinearLayout
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:onClick="mixAudioInVideoWithPlay"
-            android:text="MixAudioInVideoWithPlay"
-            android:textAllCaps="false" />
+            android:layout_height="wrap_content">
+            <Button
+                android:id="@+id/mix_audio_in_video_with_play"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:onClick="mixAudioInVideoWithPlay"
+                android:text="MixAudioInVideoWithPlay"
+                android:textAllCaps="false" />
+            <Button
+                android:id="@+id/mix_audio_in_video_with_play_btn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:onClick="mixAudioInVideoWithPlay"
+                android:text="Play"
+                android:textAllCaps="false" />
+        </LinearLayout>
 
         <Button
             android:id="@+id/mix_audio_in_video_without_play"

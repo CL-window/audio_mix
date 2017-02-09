@@ -11,7 +11,8 @@ import java.util.concurrent.LinkedBlockingDeque;
 /**
  * Created by slack
  * on 17/2/9 上午11:01.
- * 播放背景音乐
+ * 播放背景音乐 mp3/mp4
+ *
  */
 
 class PlayBackMusic {
@@ -63,6 +64,10 @@ class PlayBackMusic {
         return mIsPlaying;
     }
 
+    boolean isPCMDataEos(){
+        return mPCMData.isPCMExtractorEOS();
+    }
+
     int getBufferSize() {
         return mPCMData.getBufferSize();
     }
@@ -74,6 +79,7 @@ class PlayBackMusic {
 
     PlayBackMusic release() {
         mIsPlaying = false;
+        mIsRecording = false;
         mPCMData.release();
         backGroundBytes.clear();
         return this;
@@ -85,7 +91,7 @@ class PlayBackMusic {
      */
     private void addBackGroundBytes(byte[] bytes) {
         if (mIsPlaying && mIsRecording) {
-            backGroundBytes.add(bytes);
+            backGroundBytes.add(bytes); // what if out of memory?
         }
     }
 

@@ -14,6 +14,12 @@ import java.nio.ByteBuffer;
  * Created by slack
  * on 17/2/8 下午4:36.
  * 合成 视频中的音频 需要先从mp4 分离音频
+ *
+ * 后期处理 问题很多 !
+ * TODO: 播放出来的数据获取的慢，而直接写的视频背景音乐处理很快，直接出现 已经处理完了，但是播放的音乐只播放了1s
+ * TODO: 测试时，直接写入mp3的数据，播放速度快了，但是直接写mp4的音频 没有问题
+ * TODO： 写入背景音乐，播放出来的速率不对
+ * TODO: 不播放出来的，可以写入，但是混合时，两个数据帧的长度不一样，混合失败，数据帧的长度是每一帧可能都不一样，看来需要换混合算法
  */
 
 class MixAudioInVideo {
@@ -34,6 +40,7 @@ class MixAudioInVideo {
 
     MixAudioInVideo(String filePath) {
         srcPath = filePath;
+
 //        extractorMedia();
         extractorAudio();
     }
@@ -49,12 +56,15 @@ class MixAudioInVideo {
         }
         mPlayBackMusic = new PlayBackMusic(path);
         mPlayBackMusic.startPlayBackMusic();
-        mPlayBackMusic.setNeedRecodeDataEnable(true); //
+
         return this;
     }
 
     MixAudioInVideo startMixAudioInVideoWithPlay(){
         mixStop = false;
+        if(mPlayBackMusic != null) {
+            mPlayBackMusic.setNeedRecodeDataEnable(true);
+        }
         initAudioEncoder("with_play");
         mixAudioInVideoWithPlay();
         return this;
@@ -106,33 +116,44 @@ class MixAudioInVideo {
         mAudioEncoder.prepareEncoder();
     }
 
+    /**
+     *
+     */
     private void writeBackDataOnly() {
 
-//        byte[] src = null;
+        byte[] src = null;
         byte[] back = null;
+        byte[] des = null;
 
         // 判断条件有些问题
         while (!mixStop ) {
 
             // write origin data is ok
-//            src = mPCMData.getPCMData();
-//            if(src == null && mPCMData.isPCMExtractorEOS()){
-//                break;
-//            }
+            src = mPCMData.getPCMData(); // 这种不需要播放的，直接处理的，速度很快
             back = mPlayBackMusic.getBackGroundBytes();
-
-            if(back == null){
-                Log.i("slack","continue mix write data...");
-                try {
-                    Thread.sleep(200);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
+            if(src == null && mPCMData.isPCMExtractorEOS()){
+                // finish
+                break;
+            }
+            if(src == null && back == null){
+                Log.i("slack","continue writeBackDataOnly...");
                 continue;
             }
-
+            // 判断是否需要合成
+            if (back == null) {
+                Log.i("slack","back null...");
+                // 播放结束了，解析数据结束了，循环播放时
+                if (!mPlayBackMusic.isPlayingMusic() && mPlayBackMusic.isPCMDataEos() && mBackLoop) {
+                    mPlayBackMusic.release();
+                    mPlayBackMusic.startPlayBackMusic();
+                }
+                des = src;
+            } else {
+                Log.i("slack","back not null...");
+                des = BytesTransUtil.INSTANCE.averageMix(back,src);
+            }
             // test 写入 mp3
-            mAudioEncoder.offerAudioEncoderSyn(back);
+            mAudioEncoder.offerAudioEncoderSyn(des);
 
         }
         Log.i("slack","finish while...");
@@ -169,8 +190,7 @@ class MixAudioInVideo {
                 break;
             }
             // 防止两个文件都在读取的过程中
-//            if(src == null && back == null){
-            if( back == null){
+            if(src == null && back == null){
                 Log.i("slack","continue mix write data...");
                 try {
                     Thread.sleep(200);
@@ -181,16 +201,16 @@ class MixAudioInVideo {
             }
 
             // 判断是否需要合成
-//            if (back == null) {
-//                if (mBackPCMData.isPCMExtractorEOS() && mBackLoop) {
-//                    mBackPCMData.startPcmExtractor();
-//                }
-//                des = src;
-//            } else {
-//                des = BytesTransUtil.INSTANCE.averageMix(back,src);
-//            }
+            if (back == null) {
+                if (mBackPCMData.isPCMExtractorEOS() && mBackLoop) {
+                    mBackPCMData.startPcmExtractor();
+                }
+                des = src;
+            } else {
+                des = BytesTransUtil.INSTANCE.averageMix(src,back);
+            }
 //            des = src;// only src data ok
-            des = back; // only back error 写入的数据貌似丢帧了
+//            des = back; // only back error 写入的数据貌似丢帧了
             // test 写入 mp3
             mAudioEncoder.offerAudioEncoderSyn(des);
             Log.i("slack","mix write data...");

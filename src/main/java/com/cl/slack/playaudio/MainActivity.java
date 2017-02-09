@@ -272,14 +272,18 @@ public class MainActivity extends AppCompatActivity {
 //            }
             mRecordMixTask = new RecordMixTask();
             mRecordMixTask.execute();
-            mPlayBackMusic.setNeedRecodeDataEnable(true);
+            if (mPlayBackMusic != null) {
+                mPlayBackMusic.setNeedRecodeDataEnable(true);
+            }
         } else {
             recodeMixBtn.setText("recode");
             recodeMixBtn.setTag(null);
             mIsRecording = false;
-            mPlayBackMusic.setNeedRecodeDataEnable(false);
             mAudioEncoder.stop();
             mRecordMixTask.cancel(true);
+            if (mPlayBackMusic != null) {
+                mPlayBackMusic.setNeedRecodeDataEnable(false);
+            }
         }
     }
 
@@ -299,30 +303,41 @@ public class MainActivity extends AppCompatActivity {
      * 混合视频中的 音频 ，混合播放中的背景音乐
      * 播出来多少，写入多少 需要 initMixAudioPlayer() 配合
      */
-    MixAudioInVideo mMixAudioInVideo;
+    MixAudioInVideo mMixAudioInVideo = new MixAudioInVideo(mp4FilePath);
+
     public void mixAudioInVideoWithPlay(View view) {
-        if(videoAudioWithPlayBtn.getTag() == null) {
-            videoAudioWithPlayBtn.setTag(this);
-            videoAudioWithPlayBtn.setText("stop");
-            mMixAudioInVideo = new MixAudioInVideo(mp4FilePath);
-            mMixAudioInVideo.playBackMusic(mp3FilePath)
-                    .setMixListener(new MixAudioInVideo.MixListener() {
-                        @Override
-                        public void onFinished() {
-                            runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    Toast.makeText(MainActivity.this, "mix success ", Toast.LENGTH_SHORT).show();
-                                }
-                            });
-                        }
-                    })
-                    .startMixAudioInVideoWithPlay();// 视频帧不处理
-        }else {
-            videoAudioWithPlayBtn.setTag(null);
-            videoAudioWithPlayBtn.setText("start");
-            mMixAudioInVideo.stop();
+
+        switch (view.getId()) {
+            // 先播放
+            case R.id.mix_audio_in_video_with_play_btn:
+                // 见鬼了，解析 mp4音乐作为播放音乐，录制时没有问题，使用 mp3 就有些问题
+                mMixAudioInVideo.playBackMusic(mp3FilePath) // mp4FilePath
+                        .setMixListener(new MixAudioInVideo.MixListener() {
+                            @Override
+                            public void onFinished() {
+                                runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        Toast.makeText(MainActivity.this, "mix success ", Toast.LENGTH_SHORT).show();
+                                    }
+                                });
+                            }
+                        });
+
+                break;
+            case R.id.mix_audio_in_video_with_play:
+                if (videoAudioWithPlayBtn.getTag() == null) {
+                    videoAudioWithPlayBtn.setTag(this);
+                    videoAudioWithPlayBtn.setText("stop");
+                    mMixAudioInVideo.startMixAudioInVideoWithPlay();// 视频帧不处理
+                } else {
+                    videoAudioWithPlayBtn.setTag(null);
+                    videoAudioWithPlayBtn.setText("start");
+                    mMixAudioInVideo.stop();
+                }
+                break;
         }
+
     }
 
     /**
@@ -331,7 +346,7 @@ public class MainActivity extends AppCompatActivity {
      * 如果视频中的长度长，写入的 背景音乐 有循环播放 和 播放一次的设置
      */
     public void mixAudioInVideoWithoutPlay(View view) {
-        if(videoAudioWithoutPlayBtn.getTag() == null) {
+        if (videoAudioWithoutPlayBtn.getTag() == null) {
             videoAudioWithoutPlayBtn.setTag(this);
             videoAudioWithoutPlayBtn.setText("stop");
             mMixAudioInVideo = new MixAudioInVideo(mp4FilePath);
@@ -347,7 +362,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
             mMixAudioInVideo.startMixAudioInVideoWithoutPlay(mp3FilePath, true);// 视频帧不处理
-        }else {
+        } else {
             videoAudioWithoutPlayBtn.setTag(null);
             videoAudioWithoutPlayBtn.setText("start");
             mMixAudioInVideo.stop();
@@ -746,12 +761,9 @@ public class MainActivity extends AppCompatActivity {
 
                 }
                 // 录制结束
-                if (record != null) {
-                    record.setRecordPositionUpdateListener(null);
-                    record.stop();
-                    record.release();
-                    record = null;
-                }
+                record.setRecordPositionUpdateListener(null);
+                record.stop();
+                record.release();
 
             } catch (Exception e) {
                 // TODO: handle exception
@@ -779,7 +791,7 @@ public class MainActivity extends AppCompatActivity {
      */
     private byte[] mixBuffer(byte[] buffer) {
         if (mPlayBackMusic.hasFrameBytes()) {
-//            return getBackGroundBytes(); // 直接写入背景音乐数据
+//            return mPlayBackMusic.getBackGroundBytes(); // 直接写入背景音乐数据
             return BytesTransUtil.INSTANCE.averageMix(buffer, mPlayBackMusic.getBackGroundBytes());
         }
         return buffer;
