@@ -8,7 +8,6 @@ import android.util.Log;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Created by slack
@@ -16,7 +15,7 @@ import java.util.Objects;
  * mp3／mp4 --> audio pcm data
  */
 
-class PCMData {
+class AudioDecoder {
 
     /**
      * 初始化解码器
@@ -41,11 +40,11 @@ class PCMData {
 
     private MediaFormat mMediaFormat;
 
-    PCMData(String path) {
+    AudioDecoder(String path) {
         mp3FilePath = path;
     }
 
-    PCMData startPcmExtractor(){
+    AudioDecoder startPcmExtractor(){
         initMediaDecode();
         new Thread(new Runnable() {
             @Override
@@ -56,7 +55,7 @@ class PCMData {
         return this;
     }
 
-    PCMData release(){
+    AudioDecoder release(){
         sawOutputEOS = true;
         chunkPCMDataContainer.clear();
         return this;
@@ -145,7 +144,7 @@ class PCMData {
                         int sampleSize = mediaExtractor.readSampleData(inputBuffer, 0);//MediaExtractor读取数据到inputBuffer中
                         if (sampleSize < 0) {//小于0 代表所有数据已读取完成
                             sawInputEOS = true;
-                            mediaDecode.queueInputBuffer(inputIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                            mediaDecode.queueInputBuffer(inputIndex, 0, 0, 0L, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
                         } else {
                             long presentationTimeUs = mediaExtractor.getSampleTime();
                             mediaDecode.queueInputBuffer(inputIndex, 0, sampleSize, presentationTimeUs, 0);//通知MediaDecode解码刚刚传入的数据

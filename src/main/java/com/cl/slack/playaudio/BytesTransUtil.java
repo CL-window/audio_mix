@@ -66,6 +66,7 @@ enum  BytesTransUtil {
 //        return averageMix(new byte[][]{src1,src2});
         return averageMixSelectShort(new byte[][]{src1,src2});
     }
+
     /**
      * 采用简单的平均算法 average audio mixing algorithm
      * code from :    http://www.codexiu.cn/android/blog/3618/
@@ -191,6 +192,17 @@ enum  BytesTransUtil {
             realMixAudio[sr * 2 + 1] = (byte) ((sMixAudio[sr] & 0xFF00) >> 8);
         }
         return realMixAudio;
+    }
+
+    /**
+     *  视频帧数据 YV12 --> I420
+     */
+    public byte[] swapYV12toI420(byte[] yv12bytes, int width, int height) {
+        byte[] i420bytes = new byte[yv12bytes.length];
+        System.arraycopy(yv12bytes, 0, i420bytes, 0, width * height);
+        System.arraycopy(yv12bytes, width * height + (width / 2 * height / 2), i420bytes, width * height, width * height + (width / 2 * height / 2) - width * height);
+        System.arraycopy(yv12bytes, width * height + (width / 2 * height / 2) - (width / 2 * height / 2), i420bytes, width * height + (width / 2 * height / 2), width * height + 2 * (width / 2 * height / 2) - (width * height + (width / 2 * height / 2)));
+        return i420bytes;
     }
 
     ///////////////// private /////////////////////////////////////////////

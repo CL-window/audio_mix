@@ -20,17 +20,17 @@ import java.nio.ByteBuffer;
  * TODO: 测试时，直接写入mp3的数据，播放速度快了，但是直接写mp4的音频 没有问题
  * TODO： 写入背景音乐，播放出来的速率不对
  * TODO: 不播放出来的，可以写入，但是混合时，两个数据帧的长度不一样，混合失败，数据帧的长度是每一帧可能都不一样，看来需要换混合算法
+ * TODO：视频帧 的加入
  */
 
 class MixAudioInVideo {
 
     private String srcPath;// mp4 file path
-    private static final File SDCARD_PATH = new File(Environment.getExternalStorageDirectory(), "slack");
     private static final String OUT_PUT_VIDEO_TRACK_NAME = "output_video.mp4";// test
     private static final String OUT_PUT_AUDIO_TRACK_NAME = "output_audio";
 
-    private PCMData mPCMData;
-    private PCMData mBackPCMData;
+    private AudioDecoder mAudioDecoder;
+    private AudioDecoder mBackAudioDecoder;
     private boolean mBackLoop = false;
 
     private MixListener mMixListener;
@@ -94,11 +94,11 @@ class MixAudioInVideo {
      */
     void startMixAudioInVideoWithoutPlay(String mp3FilePath, boolean loop){
         mBackLoop = loop;
-        mBackPCMData = new PCMData(mp3FilePath);
+        mBackAudioDecoder = new AudioDecoder(mp3FilePath);
         new Thread(new Runnable() {
             @Override
             public void run() {
-                mBackPCMData.startPcmExtractor();
+                mBackAudioDecoder.startPcmExtractor();
                 initAudioEncoder("with_out_play");
                 mixData();
             }
@@ -106,12 +106,8 @@ class MixAudioInVideo {
     }
 
     private void initAudioEncoder(String fileName) {
-        if (!SDCARD_PATH.exists()) {
-            if(!SDCARD_PATH.mkdirs()){
-                Log.e("slack","mk dirs error");
-            }
-        }
-        File test = new File(SDCARD_PATH,fileName + ".mp3");
+
+        File test = new File(FileUtil.INSTANCE.getSdcardFileDir(),fileName + ".mp3");
         mAudioEncoder = new AudioEncoder(test.getAbsolutePath());
         mAudioEncoder.prepareEncoder();
     }
@@ -129,9 +125,9 @@ class MixAudioInVideo {
         while (!mixStop ) {
 
             // write origin data is ok
-            src = mPCMData.getPCMData(); // 这种不需要播放的，直接处理的，速度很快
+            src = mAudioDecoder.getPCMData(); // 这种不需要播放的，直接处理的，速度很快
             back = mPlayBackMusic.getBackGroundBytes();
-            if(src == null && mPCMData.isPCMExtractorEOS()){
+            if(src == null && mAudioDecoder.isPCMExtractorEOS()){
                 // finish
                 break;
             }
@@ -174,15 +170,15 @@ class MixAudioInVideo {
          * 或者没有数据，但是没有读取数据完成，继续循环
          */
         while (src != null || back != null ||
-                !mPCMData.isPCMExtractorEOS() || !mBackPCMData.isPCMExtractorEOS()) {
+                !mAudioDecoder.isPCMExtractorEOS() || !mBackAudioDecoder.isPCMExtractorEOS()) {
 
-            src = mPCMData.getPCMData();
-            back = mBackPCMData.getPCMData();
+            src = mAudioDecoder.getPCMData();
+            back = mBackAudioDecoder.getPCMData();
 
-            if (mixStop || (src == null && mPCMData.isPCMExtractorEOS())) {
+            if (mixStop || (src == null && mAudioDecoder.isPCMExtractorEOS())) {
                 Log.i("slack","end mix write data...");
                 // end of the mix
-                mBackPCMData.release();
+                mBackAudioDecoder.release();
                 mAudioEncoder.stop();
                 if(mMixListener != null){
                     mMixListener.onFinished();
@@ -202,8 +198,8 @@ class MixAudioInVideo {
 
             // 判断是否需要合成
             if (back == null) {
-                if (mBackPCMData.isPCMExtractorEOS() && mBackLoop) {
-                    mBackPCMData.startPcmExtractor();
+                if (mBackAudioDecoder.isPCMExtractorEOS() && mBackLoop) {
+                    mBackAudioDecoder.startPcmExtractor();
                 }
                 des = src;
             } else {
@@ -222,8 +218,8 @@ class MixAudioInVideo {
      * 只分离视频中的音频
      */
     private void extractorAudio() {
-        mPCMData = new PCMData(srcPath);
-        mPCMData.startPcmExtractor();
+        mAudioDecoder = new AudioDecoder(srcPath);
+        mAudioDecoder.startPcmExtractor();
     }
 
     /**
@@ -231,16 +227,14 @@ class MixAudioInVideo {
      */
     private void extractorMedia() {
         MediaExtractor mMediaExtractor = null;
-        if (!SDCARD_PATH.exists()) {
-            SDCARD_PATH.mkdirs();
-        }
+
         FileOutputStream videoOutputStream = null;
         FileOutputStream audioOutputStream = null;
         try {
             //分离的视频文件
-            File videoFile = new File(SDCARD_PATH, OUT_PUT_VIDEO_TRACK_NAME);
+            File videoFile = new File(FileUtil.INSTANCE.getSdcardFileDir(), OUT_PUT_VIDEO_TRACK_NAME);
             //分离的音频文件
-            File audioFile = new File(SDCARD_PATH, OUT_PUT_AUDIO_TRACK_NAME);
+            File audioFile = new File(FileUtil.INSTANCE.getSdcardFileDir(), OUT_PUT_AUDIO_TRACK_NAME);
             videoOutputStream = new FileOutputStream(videoFile);
             audioOutputStream = new FileOutputStream(audioFile);
             //源文件

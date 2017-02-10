@@ -18,7 +18,7 @@ import java.util.concurrent.LinkedBlockingDeque;
 class PlayBackMusic {
 
     private static final String TAG = "PlayBackMusic";
-    private PCMData mPCMData;
+    private AudioDecoder mAudioDecoder;
     private Queue<byte[]> backGroundBytes = new LinkedBlockingDeque<>();//new ArrayDeque<>();// ArrayDeque不是线程安全的
 
     private static final int mFrequence = 44100;
@@ -29,13 +29,13 @@ class PlayBackMusic {
     private boolean mIsRecording = false;
 
     PlayBackMusic(String path) {
-        mPCMData = new PCMData(path);
+        mAudioDecoder = new AudioDecoder(path);
     }
 
     byte[] getBackGroundBytes() {
         byte[] temp = null;
         if (backGroundBytes.isEmpty()) {
-            return temp;
+            return null;
         }
         // poll 如果队列为空，则返回null
         temp = backGroundBytes.poll();
@@ -65,11 +65,11 @@ class PlayBackMusic {
     }
 
     boolean isPCMDataEos(){
-        return mPCMData.isPCMExtractorEOS();
+        return mAudioDecoder.isPCMExtractorEOS();
     }
 
     int getBufferSize() {
-        return mPCMData.getBufferSize();
+        return mAudioDecoder.getBufferSize();
     }
 
     PlayBackMusic setNeedRecodeDataEnable(boolean enable) {
@@ -80,7 +80,7 @@ class PlayBackMusic {
     PlayBackMusic release() {
         mIsPlaying = false;
         mIsRecording = false;
-        mPCMData.release();
+        mAudioDecoder.release();
         backGroundBytes.clear();
         return this;
     }
@@ -99,7 +99,7 @@ class PlayBackMusic {
      * 解析 mp3 --> pcm
      */
     private void initPCMData() {
-        mPCMData.startPcmExtractor();
+        mAudioDecoder.startPcmExtractor();
     }
 
     /**
@@ -133,7 +133,7 @@ class PlayBackMusic {
 
                 while (mIsPlaying) {
 //                    Log.i("slack", "PlayNeedMixAudioTask..." + mIsPlaying);
-                    byte[] temp = mPCMData.getPCMData();
+                    byte[] temp = mAudioDecoder.getPCMData();
                     if (temp == null) {
                         continue;
                     }

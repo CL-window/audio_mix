@@ -305,6 +305,8 @@ public class MainActivity extends AppCompatActivity {
      */
     MixAudioInVideo mMixAudioInVideo = new MixAudioInVideo(mp4FilePath);
 
+    VideoEncodeDecode mVideoEncodeDecode = new VideoEncodeDecode();
+
     public void mixAudioInVideoWithPlay(View view) {
 
         switch (view.getId()) {
@@ -329,11 +331,16 @@ public class MainActivity extends AppCompatActivity {
                 if (videoAudioWithPlayBtn.getTag() == null) {
                     videoAudioWithPlayBtn.setTag(this);
                     videoAudioWithPlayBtn.setText("stop");
-                    mMixAudioInVideo.startMixAudioInVideoWithPlay();// 视频帧不处理
+//                    mMixAudioInVideo.startMixAudioInVideoWithPlay();// 视频帧不处理
+
+                    mVideoEncodeDecode.videoCodecPrepare(mp4FilePath);
+                    mVideoEncodeDecode.videoEncodeDecodeLoop();
+
                 } else {
                     videoAudioWithPlayBtn.setTag(null);
                     videoAudioWithPlayBtn.setText("start");
-                    mMixAudioInVideo.stop();
+//                    mMixAudioInVideo.stop();
+                    mVideoEncodeDecode.close();
                 }
                 break;
         }
@@ -370,6 +377,21 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    /**
+     * video --> images
+     * jpg is ok ,however yuv I can not open
+     */
+    public void videoGetImages(View view) {
+        VideoDecoder videodecoder=new VideoDecoder();
+        try {
+            videodecoder.videoDecodePrepare(mp4FilePath);
+            videodecoder.setSaveFrames(FileUtil.INSTANCE.getSdcardFileDir().getAbsolutePath(),3);
+            videodecoder.startDecodeFramesToImage();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     private static int[] mSampleRates = new int[]{8000, 11025, 22050, 44100};
 
     public AudioRecord findAudioRecord() {
@@ -396,6 +418,8 @@ public class MainActivity extends AppCompatActivity {
         }
         return null;
     }
+
+
 
 
     class RecordTask extends AsyncTask<Void, Integer, Void> {
