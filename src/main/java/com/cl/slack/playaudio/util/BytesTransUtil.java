@@ -1,4 +1,4 @@
-package com.cl.slack.playaudio;
+package com.cl.slack.playaudio.util;
 
 import android.util.Log;
 
@@ -9,7 +9,7 @@ import java.nio.ByteOrder;
  * on 17/2/7 下午4:54.
  */
 
-enum  BytesTransUtil {
+public enum  BytesTransUtil {
 
     INSTANCE;
 

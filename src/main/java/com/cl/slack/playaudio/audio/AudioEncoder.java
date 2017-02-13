@@ -1,4 +1,4 @@
-package com.cl.slack.playaudio;
+package com.cl.slack.playaudio.audio;
 
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
@@ -17,7 +17,7 @@ import java.util.concurrent.Executors;
  * 对音频数据进行编码
  * MediaCodec & MediaMuxer write data
  */
-class AudioEncoder {
+public class AudioEncoder {
     private static final String TAG = "AudioEncoder";
     //编码
     private MediaCodec mAudioCodec;     //音频编解码器
@@ -41,7 +41,7 @@ class AudioEncoder {
         ENCODE_FRAME, FINALIZE_ENCODER
     }
 
-    AudioEncoder(String filePath) {
+    public AudioEncoder(String filePath) {
         recordFile = filePath;
 //        prepareEncoder();
     }
@@ -50,7 +50,7 @@ class AudioEncoder {
         int index = 0;
     }
 
-    void prepareEncoder() {
+    public void prepareEncoder() {
         eosReceived = false;
         audioBytesReceived = 0;
         mAudioBufferInfo = new MediaCodec.BufferInfo();
@@ -101,7 +101,7 @@ class AudioEncoder {
     }
 
     //此方法 由AudioRecorder任务调用 开启编码任务
-    void offerAudioEncoder(byte[] input, long presentationTimeStampNs) {
+    public void offerAudioEncoder(byte[] input, long presentationTimeStampNs) {
         if (!encodingService.isShutdown()) {
 //            Log.d(TAG, "encodingServiceEncoding--submit: " + input.length + "  " + presentationTimeStampNs) ;
             encodingService.submit(new AudioEncodeTask(this, input, presentationTimeStampNs));
@@ -116,7 +116,10 @@ class AudioEncoder {
         _offerAudioEncoder(input, 0);
     }
 
-    void offerAudioEncoder(ByteBuffer buffer, long presentationTimeStampNs, int length) {
+    /**
+     * 异步操作 适合录制时调用
+     */
+    public void offerAudioEncoder(ByteBuffer buffer, long presentationTimeStampNs, int length) {
         if (!encodingService.isShutdown()) {
             encodingService.submit(new AudioEncodeTask(this, buffer, length, presentationTimeStampNs));
         }
@@ -287,7 +290,7 @@ class AudioEncoder {
     }
 
     //发送终止编码信息
-    void stop() {
+    public void stop() {
         if (!encodingService.isShutdown()) {
             encodingService.submit(new AudioEncodeTask(this, EncoderTaskType.FINALIZE_ENCODER));
         }

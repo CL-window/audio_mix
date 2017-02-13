@@ -1,4 +1,4 @@
-package com.cl.slack.playaudio;
+package com.cl.slack.playaudio.video;
 
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
@@ -60,7 +60,7 @@ public class VideoEncoder {
     private static long videoBytesReceived = 0;        //接收到的音频数据 用来设置录音起始时间的
     private MediaCodec.BufferInfo mVideoBufferInfo;
     private TrackIndex mVideoTrackIndex = new TrackIndex();
-    private long mLastAudioPresentationTimeUs = 0;
+    private long mLastVideoPresentationTimeUs = 0;
 
     private class TrackIndex {
         int index = 0;
@@ -534,7 +534,7 @@ public class VideoEncoder {
                     if (encodeData == null) {
                         throw new RuntimeException("编码数据为空");
                     }else
-                    if (bufferInfo.size != 0 && mLastAudioPresentationTimeUs < bufferInfo.presentationTimeUs) {
+                    if (bufferInfo.size != 0 && mLastVideoPresentationTimeUs < bufferInfo.presentationTimeUs) {
                         if (!mMuxerStarted) {
                             throw new RuntimeException("混合器未开启");
                         }
@@ -544,7 +544,7 @@ public class VideoEncoder {
 //                        Log.d(TAG, "presentationTimeUs--bufferInfo : " + bufferInfo.presentationTimeUs);
                         mMuxer.writeSampleData(trackIndex.index, encodeData, bufferInfo);
 
-                        mLastAudioPresentationTimeUs = bufferInfo.presentationTimeUs;
+                        mLastVideoPresentationTimeUs = bufferInfo.presentationTimeUs;
                         encoder.releaseOutputBuffer(encoderIndex, true);
                     }
 

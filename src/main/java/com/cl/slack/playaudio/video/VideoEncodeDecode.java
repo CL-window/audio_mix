@@ -1,4 +1,4 @@
-package com.cl.slack.playaudio;
+package com.cl.slack.playaudio.video;
 
 import android.util.Log;
 
@@ -6,7 +6,8 @@ import android.util.Log;
  * Created by slack
  * on 17/2/9 下午5:55.
  * 读入一个视频，在硬件解码后将其硬件编码回去
- * only video 
+ * only video
+ * 很无奈呀，只是读取数据，并没有处理，再回写回去颜色就不对
  */
 
 public class VideoEncodeDecode {
@@ -19,7 +20,7 @@ public class VideoEncodeDecode {
     private boolean mixStop = false;
 
 
-    void videoCodecPrepare(String videoInputFilePath) {
+    public void videoCodecPrepare(String videoInputFilePath) {
         mydecoder = new VideoDecoder();
         myencoder = new VideoEncoder();
         mydecoder.videoDecodePrepare(videoInputFilePath);
@@ -29,7 +30,7 @@ public class VideoEncodeDecode {
 
     }
 
-    void videoEncodeDecodeLoop() {
+    public void videoEncodeDecodeLoop() {
         mixStop = false;
         new Thread(new Runnable() {
             @Override

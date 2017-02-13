@@ -1,4 +1,4 @@
-package com.cl.slack.playaudio;
+package com.cl.slack.playaudio.video;
 
 import android.annotation.TargetApi;
 import android.graphics.ImageFormat;
@@ -50,7 +50,7 @@ public class VideoDecoder {
 
     MediaExtractor extractor = null;
     MediaCodec decoder = null;
-    MediaFormat mediaFormat = null ;
+    MediaFormat mediaFormat = null;
 
     private Queue<byte[]> FramesQueue = new LinkedBlockingDeque<>();
 
@@ -70,7 +70,7 @@ public class VideoDecoder {
         OUTPUT_DIR = theDir.getAbsolutePath() + "/";
     }
 
-    void videoDecodePrepare(String videoFilePath) {
+    public void videoDecodePrepare(String videoFilePath) {
         extractor = null;
         decoder = null;
         try {
@@ -101,7 +101,7 @@ public class VideoDecoder {
         }
     }
 
-    void close() {
+    public void close() {
 
         decoder.stop();
         decoder.release();
@@ -113,14 +113,15 @@ public class VideoDecoder {
         }
     }
 
-    void stop(){
+    public void stop() {
         sawOutputEOS = true;
         FramesQueue.clear();
     }
+
     /**
      * 解码视频 --> 图片
      */
-    void startDecodeFramesToImage(){
+    public void startDecodeFramesToImage() {
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -137,7 +138,7 @@ public class VideoDecoder {
         } finally {
             // release encoder, muxer, and input Surface
             close();
-            Log.i("slack","finish decodeFramesToImage");
+            Log.i("slack", "finish decodeFramesToImage");
         }
 
     }
@@ -145,7 +146,7 @@ public class VideoDecoder {
     /**
      * 可以写数据，写出来的数据是绿屏幕 应该是 YUV 数据 格式的问题
      */
-    void startFramesExtractor(){
+    void startFramesExtractor() {
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -172,7 +173,7 @@ public class VideoDecoder {
     /**
      * decode video --> byte[]
      */
-    private void framesExtractor(){
+    private void framesExtractor() {
         try {
 
             decodeFrames(decoder, extractor);
@@ -188,7 +189,7 @@ public class VideoDecoder {
         // test data --> jpg  error byte[] 数据 生成图片不多，显示不出来
 //        dumpFile(FileUtil.INSTANCE.getSdcardFileDir() + "/" + FramesQueue.size() + ".yuv",data);
         // todo test only 50 frames
-        if(FramesQueue.size() > 50){
+        if (FramesQueue.size() > 50) {
             sawOutputEOS = true;
         }
     }
@@ -315,7 +316,7 @@ public class VideoDecoder {
                 boolean doRender = (info.size != 0);
                 if (doRender) {
                     outputFrameCount++;
-                    if(outputFrameCount >= IMAGES_COUNT){
+                    if (outputFrameCount >= IMAGES_COUNT) {
                         sawOutputEOS = true;
                         continue;
                     }

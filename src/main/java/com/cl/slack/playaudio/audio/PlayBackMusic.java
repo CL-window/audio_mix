@@ -1,4 +1,4 @@
-package com.cl.slack.playaudio;
+package com.cl.slack.playaudio.audio;
 
 import android.media.AudioFormat;
 import android.media.AudioManager;
@@ -15,7 +15,7 @@ import java.util.concurrent.LinkedBlockingDeque;
  *
  */
 
-class PlayBackMusic {
+public class PlayBackMusic {
 
     private static final String TAG = "PlayBackMusic";
     private AudioDecoder mAudioDecoder;
@@ -28,11 +28,11 @@ class PlayBackMusic {
     private boolean mIsPlaying = false;
     private boolean mIsRecording = false;
 
-    PlayBackMusic(String path) {
+    public PlayBackMusic(String path) {
         mAudioDecoder = new AudioDecoder(path);
     }
 
-    byte[] getBackGroundBytes() {
+    public byte[] getBackGroundBytes() {
         byte[] temp = null;
         if (backGroundBytes.isEmpty()) {
             return null;
@@ -43,7 +43,7 @@ class PlayBackMusic {
         return temp;
     }
 
-    PlayBackMusic startPlayBackMusic() {
+    public PlayBackMusic startPlayBackMusic() {
         initPCMData();
         mIsPlaying = true;
         new PlayNeedMixAudioTask(new BackGroundFrameListener() {
@@ -56,7 +56,7 @@ class PlayBackMusic {
         return this;
     }
 
-    boolean hasFrameBytes() {
+    public boolean hasFrameBytes() {
         return !backGroundBytes.isEmpty();
     }
 
@@ -68,16 +68,16 @@ class PlayBackMusic {
         return mAudioDecoder.isPCMExtractorEOS();
     }
 
-    int getBufferSize() {
+    public int getBufferSize() {
         return mAudioDecoder.getBufferSize();
     }
 
-    PlayBackMusic setNeedRecodeDataEnable(boolean enable) {
+    public PlayBackMusic setNeedRecodeDataEnable(boolean enable) {
         mIsRecording = enable;
         return this;
     }
 
-    PlayBackMusic release() {
+    public PlayBackMusic release() {
         mIsPlaying = false;
         mIsRecording = false;
         mAudioDecoder.release();

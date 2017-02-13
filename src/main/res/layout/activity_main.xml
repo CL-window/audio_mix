@@ -129,6 +129,14 @@
             android:text="video-->images"
             android:textAllCaps="false" />
 
+        <Button
+            android:id="@+id/video_mix_audio"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:onClick="videoMixAudio"
+            android:text="video mix audio"
+            android:textAllCaps="false" />
+
     </LinearLayout>
 </ScrollView>
 

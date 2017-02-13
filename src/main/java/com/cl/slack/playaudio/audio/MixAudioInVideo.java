@@ -1,9 +1,11 @@
-package com.cl.slack.playaudio;
+package com.cl.slack.playaudio.audio;
 
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
-import android.os.Environment;
 import android.util.Log;
+
+import com.cl.slack.playaudio.util.BytesTransUtil;
+import com.cl.slack.playaudio.util.FileUtil;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -23,7 +25,7 @@ import java.nio.ByteBuffer;
  * TODO：视频帧 的加入
  */
 
-class MixAudioInVideo {
+public class MixAudioInVideo {
 
     private String srcPath;// mp4 file path
     private static final String OUT_PUT_VIDEO_TRACK_NAME = "output_video.mp4";// test
@@ -38,19 +40,19 @@ class MixAudioInVideo {
     private PlayBackMusic mPlayBackMusic;
     private boolean mixStop = false;
 
-    MixAudioInVideo(String filePath) {
+    public MixAudioInVideo(String filePath) {
         srcPath = filePath;
 
 //        extractorMedia();
         extractorAudio();
     }
 
-    MixAudioInVideo setMixListener(MixListener mMixListener) {
+    public MixAudioInVideo setMixListener(MixListener mMixListener) {
         this.mMixListener = mMixListener;
         return this;
     }
 
-    MixAudioInVideo playBackMusic(String path){
+    public MixAudioInVideo playBackMusic(String path){
         if(mPlayBackMusic != null){
             mPlayBackMusic.release();
         }
@@ -60,7 +62,7 @@ class MixAudioInVideo {
         return this;
     }
 
-    MixAudioInVideo startMixAudioInVideoWithPlay(){
+    public  MixAudioInVideo startMixAudioInVideoWithPlay(){
         mixStop = false;
         if(mPlayBackMusic != null) {
             mPlayBackMusic.setNeedRecodeDataEnable(true);
@@ -70,7 +72,7 @@ class MixAudioInVideo {
         return this;
     }
 
-    MixAudioInVideo stop(){
+    public MixAudioInVideo stop(){
         if(mPlayBackMusic != null) {
             mPlayBackMusic.release();
         }
@@ -92,7 +94,7 @@ class MixAudioInVideo {
      * @param mp3FilePath 需要写入的背景音乐
      * @param loop 背景音乐是否循环（背景音乐短而mp4音频长时需要用到）
      */
-    void startMixAudioInVideoWithoutPlay(String mp3FilePath, boolean loop){
+    public void startMixAudioInVideoWithoutPlay(String mp3FilePath, boolean loop){
         mBackLoop = loop;
         mBackAudioDecoder = new AudioDecoder(mp3FilePath);
         new Thread(new Runnable() {
@@ -306,7 +308,7 @@ class MixAudioInVideo {
         }
     }
 
-    interface MixListener{
+    public interface MixListener{
         void onFinished();
     }
 }

@@ -1,4 +1,4 @@
-package com.cl.slack.playaudio;
+package com.cl.slack.playaudio.audio;
 
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
@@ -15,7 +15,7 @@ import java.util.List;
  * mp3／mp4 --> audio pcm data
  */
 
-class AudioDecoder {
+public class AudioDecoder {
 
     /**
      * 初始化解码器
@@ -40,11 +40,11 @@ class AudioDecoder {
 
     private MediaFormat mMediaFormat;
 
-    AudioDecoder(String path) {
+    public AudioDecoder(String path) {
         mp3FilePath = path;
     }
 
-    AudioDecoder startPcmExtractor(){
+    public AudioDecoder startPcmExtractor(){
         initMediaDecode();
         new Thread(new Runnable() {
             @Override
@@ -55,13 +55,13 @@ class AudioDecoder {
         return this;
     }
 
-    AudioDecoder release(){
+    public AudioDecoder release(){
         sawOutputEOS = true;
         chunkPCMDataContainer.clear();
         return this;
     }
 
-    byte[] getPCMData() {
+    public byte[] getPCMData() {
         synchronized (lockPCM) {//记得加锁
             if (chunkPCMDataContainer.isEmpty()) {
                 return null;
@@ -125,7 +125,6 @@ class AudioDecoder {
 //            Log.i("slack","put pcm data ...");
         }
     }
-
 
     /**
      * 解码音频文件 得到PCM数据块

@@ -1,19 +1,13 @@
 package com.cl.slack.playaudio;
 
-import android.content.res.AssetFileDescriptor;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioRecord;
-import android.media.AudioRouting;
 import android.media.AudioTrack;
-import android.media.MediaCodec;
-import android.media.MediaExtractor;
-import android.media.MediaFormat;
 import android.media.MediaPlayer;
 import android.media.MediaRecorder;
 import android.os.AsyncTask;
 import android.os.Environment;
-import android.sax.StartElementListener;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -21,26 +15,26 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
 
+import com.cl.slack.playaudio.audio.AudioEncoder;
+import com.cl.slack.playaudio.audio.MixAudioInVideo;
+import com.cl.slack.playaudio.audio.PlayBackMusic;
+import com.cl.slack.playaudio.media.MediaMixAudio;
 import com.cl.slack.playaudio.permission.PermissionsManager;
 import com.cl.slack.playaudio.permission.PermissionsResultAction;
+import com.cl.slack.playaudio.util.BytesTransUtil;
+import com.cl.slack.playaudio.util.FileUtil;
+import com.cl.slack.playaudio.video.VideoDecoder;
+import com.cl.slack.playaudio.video.VideoEncodeDecode;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
-import java.io.FileDescriptor;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Queue;
-import java.util.concurrent.SynchronousQueue;
 
 import javazoom.jl.decoder.Bitstream;
 import javazoom.jl.decoder.Decoder;
@@ -59,7 +53,7 @@ public class MainActivity extends AppCompatActivity {
     private MediaPlayer mMediaPlayer;
     private Button mediaPlayerBtn, audioTrackBtn, recodeAudioBtn, playRecodeAudioBtn,
             mediaCodecBtn, playMediaCodecBtn, recodeMixBtn, playNeedMixedBtn, playMixBtn,
-            videoAudioWithPlayBtn, videoAudioWithoutPlayBtn;
+            videoAudioWithPlayBtn, videoAudioWithoutPlayBtn,videoMixAudio;
 
     private RecordMediaCodecTask mRecordMediaCodecTask;
     private RecordMixTask mRecordMixTask;
@@ -94,6 +88,7 @@ public class MainActivity extends AppCompatActivity {
         playMixBtn = (Button) findViewById(R.id.play_mix_audio);
         videoAudioWithPlayBtn = (Button) findViewById(R.id.mix_audio_in_video_with_play);
         videoAudioWithoutPlayBtn = (Button) findViewById(R.id.mix_audio_in_video_without_play);
+        videoMixAudio = (Button) findViewById(R.id.video_mix_audio);
 
         medicCodecFile = new File(Environment.getExternalStorageDirectory(), "test_media_audio.mp3"); // m4a");
     }
@@ -419,7 +414,20 @@ public class MainActivity extends AppCompatActivity {
         return null;
     }
 
-
+    MediaMixAudio mMediaMixAudio;
+    public void videoMixAudio(View view) {
+        if (videoMixAudio.getTag() == null) {
+            videoMixAudio.setText("stop");
+            videoMixAudio.setTag(this);
+            mMediaMixAudio = new MediaMixAudio(mp4FilePath,mp3FilePath,
+                    new File(Environment.getExternalStorageDirectory(),"test_out.mp4").toString());
+            mMediaMixAudio.start();
+        } else {
+            videoMixAudio.setText("start");
+            videoMixAudio.setTag(null);
+            mMediaMixAudio.stop();
+        }
+    }
 
 
     class RecordTask extends AsyncTask<Void, Integer, Void> {
