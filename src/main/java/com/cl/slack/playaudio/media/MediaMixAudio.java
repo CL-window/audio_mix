@@ -5,6 +5,8 @@ import android.util.Log;
 import com.cl.slack.playaudio.audio.AudioDecoder;
 import com.cl.slack.playaudio.util.BytesTransUtil;
 
+import java.io.IOException;
+
 /**
  * Created by slack
  * on 17/2/10 下午6:16.
@@ -13,8 +15,9 @@ import com.cl.slack.playaudio.util.BytesTransUtil;
 
 public class MediaMixAudio {
 
+    private static final String TAG = "MediaMixAudio";
     private MediaDecoder mediaDecoder;
-    private MediaEncoder mediaEncoder;
+    private MediaMuxerMixAudioAndVideo mediaEncoder;
     private AudioDecoder mAudioDecoder;
     private MediaInfo mediaInfo;
 
@@ -27,10 +30,15 @@ public class MediaMixAudio {
      */
     public MediaMixAudio(String mp4,String mp3,String des) {
         mediaDecoder = new MediaDecoder();
-        mediaEncoder = new MediaEncoder();
+        mediaEncoder = new MediaMuxerMixAudioAndVideo(des);
         mAudioDecoder = new AudioDecoder(mp3);
         mediaInfo = mediaDecoder.prepare(mp4);
-        mediaEncoder.prepare(mediaInfo,des);
+        try {
+            mediaEncoder.prepare(mediaInfo);
+        } catch (IOException e) {
+            e.printStackTrace();
+            Log.e(TAG,"mediaEncoder.prepare error: " + e.toString());
+        }
 
     }
 
@@ -77,7 +85,7 @@ public class MediaMixAudio {
     private void release(){
         mAudioDecoder.release();
         mediaDecoder.release();
-        mediaEncoder.stop();
+        mediaEncoder.release();
     }
 
     private MediaFrame mixAudio(MediaFrame frame){

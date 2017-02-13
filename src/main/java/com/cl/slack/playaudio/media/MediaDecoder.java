@@ -54,8 +54,6 @@ public class MediaDecoder implements Handler.Callback {
         try {
             mediaDecode = MediaCodec.createDecoderByType(mediaInfo.mVideoMime);
             mediaDecode.configure(mediaInfo.mVideoFormat, null, null, 0);
-//            mediaDecode = MediaCodec.createDecoderByType(mediaInfo.mAudioMime);// only audio is ok
-//            mediaDecode.configure(mediaInfo.mAudioFormat, null, null, 0);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -84,6 +82,7 @@ public class MediaDecoder implements Handler.Callback {
         } else if (mThread != null) {
             this.releaseInternal();
         }
+        System.gc();
         return this;
     }
 
@@ -117,9 +116,7 @@ public class MediaDecoder implements Handler.Callback {
                 if (mime.startsWith("video/") && mediaInfo.mVideoTrackIndex < 0) {//获取视频轨道
                     mediaExtractor.selectTrack(i);//选择此视频轨道
                     mediaInfo.setVideoFormat(i, format);
-                }
-                else
-                if (mime.startsWith("audio/") && mediaInfo.mAudioTrackIndex < 0) {//获取音频轨道
+                } else if (mime.startsWith("audio/") && mediaInfo.mAudioTrackIndex < 0) {//获取音频轨道
                     mediaExtractor.selectTrack(i);//选择此音频轨道
                     mediaInfo.setAudioFormat(i, format);
                 }
@@ -135,7 +132,7 @@ public class MediaDecoder implements Handler.Callback {
 
     private void addMediaFrameData(MediaFrame frame) {
         mMediaQueue.add(frame);
-        if (mMediaQueue.size() > 100) { // test only 100 frames
+        if (mMediaQueue.size() > 50) { // test only 100 frames
             sawOutputEOS = true;
         }
     }

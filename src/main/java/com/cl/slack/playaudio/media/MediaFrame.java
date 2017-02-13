@@ -66,7 +66,7 @@ public class MediaFrame {
     }
 
     public int dataLength(){
-        return info.offset + info.size;
+        return data.length;
     }
 
     public int track(){
