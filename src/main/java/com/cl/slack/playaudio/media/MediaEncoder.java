@@ -26,8 +26,6 @@ public abstract class MediaEncoder {
     private WeakReference<MediaMuxerMixAudioAndVideo> mWeakMuxer;
 
     private boolean eosReceived = false;  //终止录音的标志
-    private long videoStartTime;
-    private static long mediaBytesReceived = 0;        //接收到的音频数据 用来设置录音起始时间的
     private long mLastMediaPresentationTimeUs = 0;
 
     private int mTrackIndex = -1; // video or audio
@@ -61,12 +59,7 @@ public abstract class MediaEncoder {
     }
 
     private void _offerMediaEncoder(MediaFrame frame) {
-        if (mediaBytesReceived == 0) {
-            videoStartTime = System.nanoTime();
-        }
-        if (frame != null && frame.hasData()) {
-            mediaBytesReceived += frame.getByteData().length;
-        }
+
         drainEncoder(mMediaCodec, false);
         try {
             ByteBuffer[] inputBuffers = mMediaCodec.getInputBuffers();
@@ -79,13 +72,11 @@ public abstract class MediaEncoder {
                     inputBuffer.put(frame.getByteData());
                 }
 
-                long presentationTimeUs = (System.nanoTime() - videoStartTime) / 1000L;
-//                Log.d(TAG, "presentationTimeUs--" + presentationTimeUs);
                 if (eosReceived) {
-                    mMediaCodec.queueInputBuffer(inputBufferIndex, 0, 0, presentationTimeUs, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                    mMediaCodec.queueInputBuffer(inputBufferIndex, 0, 0, getPTSUs(), MediaCodec.BUFFER_FLAG_END_OF_STREAM);
                     finishMediaCodec();
                 } else if (frame != null && frame.hasData()) {
-                    mMediaCodec.queueInputBuffer(inputBufferIndex, 0, frame.dataLength(), presentationTimeUs, 0);
+                    mMediaCodec.queueInputBuffer(inputBufferIndex, 0, frame.dataLength(), getPTSUs(), 0);
                 }
             }
 
@@ -119,7 +110,7 @@ public abstract class MediaEncoder {
                     mTrackIndex = mediaMuxer.addTrack(format);
                     mMuxerStarted = true;
                     mediaMuxer.start();
-                    Log.i("slack", "mTrackIndex :" + mTrackIndex);
+                    Log.i("slack", "add TrackIndex :" + mTrackIndex);
                 } else if (encoderIndex < 0) {
                     Log.w(TAG, "encoderIndex 非法" + encoderIndex);
                 } else {
@@ -135,14 +126,15 @@ public abstract class MediaEncoder {
                     ByteBuffer encodeData = encoderOutputBuffers[encoderIndex];
                     if (encodeData == null) {
                         throw new RuntimeException("编码数据为空");
-                    } else if (bufferInfo.size != 0 && mLastMediaPresentationTimeUs < bufferInfo.presentationTimeUs) {
-//                    } else if (bufferInfo.size != 0) {
+//                    } else if (bufferInfo.size != 0 && mLastMediaPresentationTimeUs < bufferInfo.presentationTimeUs) {
+                    } else if (bufferInfo.size != 0) {
                         if (!mediaMuxer.isStarted()) {
                             throw new RuntimeException("混合器未开启");
                         }
-                        Log.d(TAG, "write_info_data......");
+                        Log.d(TAG, "write_info_data......" + mTrackIndex);
                         encodeData.position(bufferInfo.offset);
                         encodeData.limit(bufferInfo.offset + bufferInfo.size);
+                        bufferInfo.presentationTimeUs = getPTSUs(); 
                         mediaMuxer.writeSampleData(mTrackIndex, encodeData, bufferInfo);
 
                         mLastMediaPresentationTimeUs = bufferInfo.presentationTimeUs;
@@ -153,6 +145,15 @@ public abstract class MediaEncoder {
             }
         }
 
+    }
+
+    protected long getPTSUs() {
+        long result = System.nanoTime() / 1000L;
+        // presentationTimeUs should be monotonic
+        // otherwise muxer fail to write
+        if (result < mLastMediaPresentationTimeUs)
+            result = (mLastMediaPresentationTimeUs - result) + result;
+        return result;
     }
 
     //终止编码
