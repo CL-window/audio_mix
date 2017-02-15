@@ -45,10 +45,10 @@ public enum  BytesTransUtil {
         }
     }
 
-    public void noiseClear(byte[] bytes,int off,int len) {
+    public byte[] noiseClear(byte[] bytes,int off,int len) {
         short[] data = bytes2Shorts(bytes);
         noiseClear(data,off,len);
-        bytes = shorts2Bytes(data);
+        return shorts2Bytes(data);
     }
 
     /**
@@ -60,6 +60,12 @@ public enum  BytesTransUtil {
         {
             buffer[i]= (byte) (buffer[i]*level);
         }
+    }
+
+    public short[] adjustVoice(short[] buffer,int level){
+        byte[] temp = shorts2Bytes(buffer);
+        adjustVoice(temp,level);
+        return bytes2Shorts(temp);
     }
 
     public byte[] averageMix(byte[] src1,byte[] src2){

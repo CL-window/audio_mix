@@ -33,6 +33,10 @@ public class MediaFrame {
         return trackIndex == index;
     }
 
+    public boolean isVideoTrack(int index){
+        return trackIndex == index;
+    }
+
     public int size() {
         return info.size;
     }
@@ -73,7 +77,7 @@ public class MediaFrame {
         return trackIndex;
     }
 
-    public int setTrack(){
+    public int getTrack(){
         return trackIndex;
     }
 

@@ -76,6 +76,14 @@ public class MediaMixAudio {
                 }
                 continue;
             }
+            // 写入视频帧之前 先写入队列下一个视频帧之前的所有的音频帧
+//            if(frame.isVideoTrack(mediaInfo.mVideoTrackIndex)){
+//                while (mediaDecoder.nextIsAudioFrame()){
+//                    // here mediaDecoder.getMediaFrameData() != null;
+//                    mediaEncoder.offerMediaEncoder(mixAudio(mediaDecoder.getMediaFrameData()));
+//                }
+//            }
+//            mediaEncoder.offerMediaEncoder(frame);
             mediaEncoder.offerMediaEncoder(mixAudio(frame));
         }
         Log.i("slack","finish while ...");

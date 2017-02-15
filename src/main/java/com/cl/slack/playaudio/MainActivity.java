@@ -450,7 +450,6 @@ public class MainActivity extends AppCompatActivity {
                 // 定义缓冲
                 short[] buffer = new short[bufferSize];
 
-
                 // 开始录制
                 record.startRecording();
 
@@ -461,6 +460,10 @@ public class MainActivity extends AppCompatActivity {
                     // 从bufferSize中读取字节，返回读取的short个数
                     int bufferReadResult = record
                             .read(buffer, 0, buffer.length);
+                    // try 提高音量 但是会加入噪音
+//                    buffer = BytesTransUtil.INSTANCE.adjustVoice(buffer,5);
+                    // try 消除噪音 ，貌似是有用的，但是音量更低了
+                    BytesTransUtil.INSTANCE.noiseClear(buffer,0,bufferReadResult);
                     // 循环将buffer中的音频数据写入到OutputStream中
                     for (int i = 0; i < bufferReadResult; i++) {
                         dos.writeShort(buffer[i]);
@@ -559,7 +562,7 @@ public class MainActivity extends AppCompatActivity {
                         mFrequence,
                         AudioFormat.CHANNEL_IN_STEREO, mAudioEncoding, bufferSize,
                         AudioTrack.MODE_STREAM);
-                track.setStereoVolume(0.7f, 0.7f);//设置当前音量大小
+                track.setStereoVolume(1.0f, 1.0f);//设置当前音量大小
                 // 开始播放
                 track.play();
                 // 由于AudioTrack播放的是流，所以，我们需要一边播放一边读取
@@ -569,6 +572,7 @@ public class MainActivity extends AppCompatActivity {
                         buffer[i] = dis.readShort();
                         i++;
                     }
+
                     // 然后将数据写入到AudioTrack中
                     track.write(buffer, 0, buffer.length);
                 }

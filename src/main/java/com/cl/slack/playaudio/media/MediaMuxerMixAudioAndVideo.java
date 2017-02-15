@@ -11,6 +11,7 @@ import java.nio.ByteBuffer;
 /**
  * @author slack
  * @time 17/2/13 下午4:14
+ * MediaMuxer
  */
 class MediaMuxerMixAudioAndVideo {
 

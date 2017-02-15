@@ -90,6 +90,14 @@ public class MediaDecoder implements Handler.Callback {
         return mMediaQueue.poll();
     }
 
+    public boolean nextIsAudioFrame(){
+        MediaFrame f = mMediaQueue.peek();
+        if(f == null || mediaInfo == null){
+            return false;
+        }
+        return mediaInfo.mAudioTrackIndex == f.getTrack();
+    }
+
     /**
      * 测试时发现 播放音频的 MediaCodec.BufferInfo.size 是变换的
      * 需要下一帧的音频长度 todo Queue －－ > list 方便寻找音频帧
