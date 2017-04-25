@@ -257,12 +257,7 @@ public class MainActivity extends AppCompatActivity {
             recodeMixBtn.setTag(this);
             mAudioEncoder = new AudioEncoder(medicCodecFile.getAbsolutePath());
             mAudioEncoder.prepareEncoder();
-            mAudioEncoder.setAudioEncodeCallback(new AudioEncoder.Callback() {
-                @Override
-                public void onDecodeFinish() {
-                    Log.i("slack","decode finish...");
-                }
-            });
+            mAudioEncoder.setAudioEncodeCallback(mAudioEncoderCallback);
 //            // 测试 发现直接写入 播放的数据不清晰 猜测是 MediaFormat
 //            if(mPCMData.getMediaFormat() == null){
 //                // 先进行录制 再背景音乐播放
@@ -287,6 +282,18 @@ public class MainActivity extends AppCompatActivity {
             mIsRecording = false;
         }
     }
+
+    private AudioEncoder.Callback mAudioEncoderCallback = new AudioEncoder.Callback() {
+        @Override
+        public void onDecodeFinish() {
+            Log.i("slack","decode finish...");
+        }
+
+        @Override
+        public void onProgress(int current, int total) {
+            Log.i("slack","decode onProgress " + current + " / " + total);
+        }
+    };
 
     public void playMixAudio(View view) {
         if (playMixBtn.getTag() == null) {
@@ -834,6 +841,7 @@ public class MainActivity extends AppCompatActivity {
          * mAudioEncoder.stop(); 之前  应该先把需要写入的数据消费完
          */
         private void feedAllData() {
+            int total = mPlayBackMusic.frameBytesSize();
             while (mAudioEncoder != null && mPlayBackMusic.hasFrameBytes()){
                 try {
                     Thread.sleep(20);
@@ -843,6 +851,7 @@ public class MainActivity extends AppCompatActivity {
                 audioPresentationTimeNs = System.nanoTime();
                 Log.e("slack", "feedAllData ... " + audioPresentationTimeNs);
                 mAudioEncoder.offerAudioEncoder(mPlayBackMusic.getBackGroundBytes(), audioPresentationTimeNs);
+                mAudioEncoderCallback.onProgress(total - mPlayBackMusic.frameBytesSize(),total);
             }
         }
 

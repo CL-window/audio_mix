@@ -60,6 +60,10 @@ public class PlayBackMusic {
         return !backGroundBytes.isEmpty();
     }
 
+    public int frameBytesSize() {
+        return backGroundBytes.size();
+    }
+
     public boolean isPlayingMusic() {
         return mIsPlaying;
     }

@@ -400,6 +400,7 @@ public class AudioEncoder {
 
     public interface Callback{
         void onDecodeFinish();
+        void onProgress(int current,int total);
     }
 }
 
