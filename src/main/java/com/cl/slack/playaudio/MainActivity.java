@@ -257,6 +257,12 @@ public class MainActivity extends AppCompatActivity {
             recodeMixBtn.setTag(this);
             mAudioEncoder = new AudioEncoder(medicCodecFile.getAbsolutePath());
             mAudioEncoder.prepareEncoder();
+            mAudioEncoder.setAudioEncodeCallback(new AudioEncoder.Callback() {
+                @Override
+                public void onDecodeFinish() {
+                    Log.i("slack","decode finish...");
+                }
+            });
 //            // 测试 发现直接写入 播放的数据不清晰 猜测是 MediaFormat
 //            if(mPCMData.getMediaFormat() == null){
 //                // 先进行录制 再背景音乐播放

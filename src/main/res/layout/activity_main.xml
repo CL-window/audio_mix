@@ -91,7 +91,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:onClick="playMixAudio"
-            android:text="recode_mix_audio"
+            android:text="play recode_mix_audio"
             android:textAllCaps="false" />
 
 

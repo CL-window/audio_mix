@@ -50,6 +50,11 @@ public class AudioEncoder {
         int index = 0;
     }
 
+    private Callback mCallback;
+    public void setAudioEncodeCallback(Callback callback){
+        mCallback = callback;
+    }
+
     public void prepareEncoder() {
         eosReceived = false;
         audioBytesReceived = 0;
@@ -167,6 +172,9 @@ public class AudioEncoder {
         closeEncoder(mAudioCodec, mAudioBufferInfo, mAudioTrackIndex);
         closeMuxer();
         encodingService.shutdown();
+        if(mCallback != null){
+            mCallback.onDecodeFinish();
+        }
     }
 
     private void _offerAudioEncoder(ByteBuffer buffer, int length, long pts) {
@@ -390,5 +398,8 @@ public class AudioEncoder {
     }
 
 
+    public interface Callback{
+        void onDecodeFinish();
+    }
 }
 
