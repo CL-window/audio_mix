@@ -210,10 +210,10 @@ public class MainActivity extends AppCompatActivity {
             mediaCodecBtn.setTag(this);
             mAudioEncoder = new AudioEncoder(medicCodecFile.getAbsolutePath());
             mAudioEncoder.prepareEncoder();
-//            mRecordMediaCodecTask = new RecordMediaCodecTask();
-//            mRecordMediaCodecTask.execute();
-            RecordMediaCodecByteBufferTask mRecordMediaCodecByteBufferTask = new RecordMediaCodecByteBufferTask();
-            mRecordMediaCodecByteBufferTask.execute();
+            mRecordMediaCodecTask = new RecordMediaCodecTask();
+            mRecordMediaCodecTask.execute();
+//            RecordMediaCodecByteBufferTask mRecordMediaCodecByteBufferTask = new RecordMediaCodecByteBufferTask();
+//            mRecordMediaCodecByteBufferTask.execute();
         } else {
             mediaCodecBtn.setText("recode");
             mediaCodecBtn.setTag(null);
@@ -238,11 +238,12 @@ public class MainActivity extends AppCompatActivity {
         if (playNeedMixedBtn.getTag() == null) {
             playNeedMixedBtn.setText("stop");
             playNeedMixedBtn.setTag(this);
+            mPlayBackMusic.release();
             mPlayBackMusic.startPlayBackMusic();
         } else {
             playNeedMixedBtn.setText("play");
             playNeedMixedBtn.setTag(null);
-            mPlayBackMusic.release();
+            mPlayBackMusic.stop();
         }
     }
 
@@ -273,12 +274,11 @@ public class MainActivity extends AppCompatActivity {
         } else {
             recodeMixBtn.setText("recode");
             recodeMixBtn.setTag(null);
-            mIsRecording = false;
-            mAudioEncoder.stop();
-            mRecordMixTask.cancel(true);
             if (mPlayBackMusic != null) {
                 mPlayBackMusic.setNeedRecodeDataEnable(false);
             }
+            // feed all data done code in RecordMixTask
+            mIsRecording = false;
         }
     }
 
@@ -430,6 +430,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
+    /**
+     * 录制 声音小 杂音大
+     */
     class RecordTask extends AsyncTask<Void, Integer, Void> {
         @Override
         protected Void doInBackground(Void... arg0) {
@@ -463,12 +466,12 @@ public class MainActivity extends AppCompatActivity {
                     // try 提高音量 但是会加入噪音
 //                    buffer = BytesTransUtil.INSTANCE.adjustVoice(buffer,5);
                     // try 消除噪音 ，貌似是有用的，但是音量更低了
-                    BytesTransUtil.INSTANCE.noiseClear(buffer,0,bufferReadResult);
+//                    BytesTransUtil.INSTANCE.noiseClear(buffer,0,bufferReadResult);
                     // 循环将buffer中的音频数据写入到OutputStream中
                     for (int i = 0; i < bufferReadResult; i++) {
                         dos.writeShort(buffer[i]);
                     }
-                    publishProgress(new Integer(r)); // 向UI线程报告当前进度
+                    publishProgress(r); // 向UI线程报告当前进度
                     r++; // 自增进度值
                 }
                 // 录制结束
@@ -485,7 +488,7 @@ public class MainActivity extends AppCompatActivity {
 
         // 当在上面方法中调用publishProgress时，该方法触发,该方法在UI线程中被执行
         protected void onProgressUpdate(Integer... progress) {
-            //
+            Log.i("slack", "onProgressUpdate:" + progress[0]);
         }
 
 
@@ -759,55 +762,95 @@ public class MainActivity extends AppCompatActivity {
     }
 
     class RecordMixTask extends AsyncTask<Void, Integer, Void> {
+
+        AudioRecord audioRecord;
+        int bufferReadResult = 0;
+        long audioPresentationTimeNs; //音频时间戳 pts
+
+        public RecordMixTask() {
+            // 根据定义好的几个配置，来获取合适的缓冲大小
+            int bufferSize = AudioRecord.getMinBufferSize(mFrequence,
+                    mChannelConfig, mAudioEncoding);
+            // 实例化AudioRecord
+            audioRecord = new AudioRecord(
+                    MediaRecorder.AudioSource.MIC, mFrequence,
+                    mChannelConfig, mAudioEncoding, bufferSize * 4);
+        }
+
         @Override
         protected Void doInBackground(Void... arg0) {
             Log.i("thread", "RecordMixTask: " + Thread.currentThread().getId());
             mIsRecording = true;
-            int bufferReadResult = 0;
-            long audioPresentationTimeNs; //音频时间戳 pts
+
             try {
-                // 根据定义好的几个配置，来获取合适的缓冲大小
-                int bufferSize = AudioRecord.getMinBufferSize(mFrequence,
-                        mChannelConfig, mAudioEncoding);
-                // 实例化AudioRecord
-                AudioRecord record = new AudioRecord(
-                        MediaRecorder.AudioSource.MIC, mFrequence,
-                        mChannelConfig, mAudioEncoding, bufferSize * 4);
 
                 // 开始录制
-                record.startRecording();
+                audioRecord.startRecording();
 
                 while (mIsRecording) {
-
-                    audioPresentationTimeNs = System.nanoTime();
-
-                    int samples_per_frame = mPlayBackMusic.getBufferSize(); // 这里需要与 背景音乐读取出来的数据长度 一样
-                    byte[] buffer = new byte[samples_per_frame];
-                    //从缓冲区中读取数据，存入到buffer字节数组数组中
-                    bufferReadResult = record.read(buffer, 0, buffer.length);
-                    //判断是否读取成功
-                    if (bufferReadResult == AudioRecord.ERROR_BAD_VALUE || bufferReadResult == AudioRecord.ERROR_INVALID_OPERATION)
-                        Log.e("slack", "Read error");
-                    if (mAudioEncoder != null) {
-//                        Log.i("slack","buffer length: " + buffer.length + " " + bufferReadResult + " " + bufferSize);
-                        buffer = mixBuffer(buffer);
-                        //将音频数据发送给AudioEncoder类进行编码
-                        mAudioEncoder.offerAudioEncoder(buffer, audioPresentationTimeNs);
-                    }
-
+                    writeMixData();
                 }
-                // 录制结束
-                record.setRecordPositionUpdateListener(null);
-                record.stop();
-                record.release();
+                // 录制结束 停止接收麦克风数据
+                audioRecord.stop();
+                audioRecord.release();
 
             } catch (Exception e) {
                 // TODO: handle exception
                 Log.e("slack", "::" + e.getMessage());
+            }finally {
+                feedAllData();
+                mAudioEncoder.stop();
             }
             return null;
         }
 
+        private void writeMixData(){
+            audioPresentationTimeNs = System.nanoTime();
+
+            int samples_per_frame = mPlayBackMusic.getBufferSize(); // 这里需要与 背景音乐读取出来的数据长度 一样
+            byte[] buffer = new byte[samples_per_frame];
+            //从缓冲区中读取数据，存入到buffer字节数组数组中
+            bufferReadResult = audioRecord.read(buffer, 0, buffer.length);
+            //判断是否读取成功
+            if (bufferReadResult < 0)
+                Log.e("slack", "Read error");
+            if (mAudioEncoder != null) {
+                buffer = mixBuffer(buffer);
+                //将音频数据发送给AudioEncoder类进行编码
+                mAudioEncoder.offerAudioEncoder(buffer, audioPresentationTimeNs);
+            }
+        }
+
+        /**
+         *  这部分写入的 有问题，播放时 太快
+         *  解决 ： 我靠 sleep 一下 就好了  20ms is OK
+         *  录制出来的 时间 短 ，用户 录制 10 s，实际上写入的数据不足10秒
+         * mAudioEncoder.stop(); 之前  应该先把需要写入的数据消费完
+         */
+        private void feedAllData() {
+            while (mAudioEncoder != null && mPlayBackMusic.hasFrameBytes()){
+                try {
+                    Thread.sleep(20);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                audioPresentationTimeNs = System.nanoTime();
+                Log.e("slack", "feedAllData ... " + audioPresentationTimeNs);
+                mAudioEncoder.offerAudioEncoder(mPlayBackMusic.getBackGroundBytes(), audioPresentationTimeNs);
+            }
+        }
+
+
+        /**
+         * 混合 音频
+         */
+        private byte[] mixBuffer(byte[] buffer) {
+//            return mPlayBackMusic.getBackGroundBytes(); // 直接写入背景音乐数据
+            if (mPlayBackMusic.hasFrameBytes()) {
+                return BytesTransUtil.INSTANCE.averageMix(buffer, mPlayBackMusic.getBackGroundBytes());
+            }
+            return buffer;
+        }
 
         // 当在上面方法中调用publishProgress时，该方法触发,该方法在UI线程中被执行
         protected void onProgressUpdate(Integer... progress) {
@@ -819,18 +862,6 @@ public class MainActivity extends AppCompatActivity {
 
         }
 
-    }
-
-
-    /**
-     * 混合 音频
-     */
-    private byte[] mixBuffer(byte[] buffer) {
-        if (mPlayBackMusic.hasFrameBytes()) {
-//            return mPlayBackMusic.getBackGroundBytes(); // 直接写入背景音乐数据
-            return BytesTransUtil.INSTANCE.averageMix(buffer, mPlayBackMusic.getBackGroundBytes());
-        }
-        return buffer;
     }
 
     private void releaseMediaPlayer() {

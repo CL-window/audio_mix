@@ -77,6 +77,11 @@ public class PlayBackMusic {
         return this;
     }
 
+    public PlayBackMusic stop() {
+        mIsPlaying = false;
+        return this;
+    }
+
     public PlayBackMusic release() {
         mIsPlaying = false;
         mIsRecording = false;
